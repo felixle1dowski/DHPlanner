@@ -10,7 +10,8 @@ import os
 
 class Config:
 
-    REQUIRED_FIELDS = ["logger-path-name", "selection-layer-name", "installation-strategy",
+    REQUIRED_FIELDS = ["logger-path-name","buildings-layer-name", "roads-layer-name",
+                       "selection-layer-name", "installation-strategy",
                        "log-level", "method", "data-folder", "roads-file-name",
                        "buildings-file-name"]
     SCRIPT_DIR = os.path.dirname(__file__)
@@ -46,15 +47,16 @@ class Config:
             raise ConfigException("Log Level is not valid.")
         if self.config.get("method") not in ["one-step", "multi-step"]:
             raise ConfigException("Method is not valid.")
-        data_folder_path = Path(self.config.get("data-folder"))
-        if not data_folder_path.is_dir():
-            raise ConfigException(f"Data Folder {data_folder_path} is not valid.")
-        roads_file_path = data_folder_path / self.config.get("roads-file-name")
-        if not roads_file_path.is_file():
-            raise ConfigException(f"Roads File {roads_file_path} is not valid.")
-        buildings_file_path = data_folder_path / self.config.get("buildings-file-name")
-        if not buildings_file_path.is_file():
-            raise ConfigException(f"Buildings File {buildings_file_path} is not valid.")
+        # data_folder_path = Path(self.config.get("data-folder"))
+        # if not data_folder_path.is_dir():
+        #     raise ConfigException(f"Data Folder {data_folder_path} is not valid.")
+        # roads_file_path = data_folder_path / self.config.get("roads-file-name")
+        # ToDo: Add back in, once we're using files, not layers.
+        # if not roads_file_path.is_file():
+        #     raise ConfigException(f"Roads File {roads_file_path} is not valid.")
+        # buildings_file_path = data_folder_path / self.config.get("buildings-file-name")
+        # if not buildings_file_path.is_file():
+        #     raise ConfigException(f"Buildings File {buildings_file_path} is not valid.")
 
     def get_selection_layer_name(self):
         return self.config.get("selection-layer-name")
@@ -68,11 +70,19 @@ class Config:
     def get_method(self):
         return self.config.get("method")
 
-    def get_roads_path(self):
-        return Path(self.config.get("data-folder")) / self.config.get("roads-file-name")
-
-    def get_buildings_path(self):
-        return Path(self.config.get("data-folder")) / self.config.get("buildings-file-name")
+    # ToDo: Add back in
+    # def get_roads_path(self):
+    #     return Path(self.config.get("data-folder")) / self.config.get("roads-file-name")
+    #
+    # ToDo: Add back in
+    # def get_buildings_path(self):
+    #     return Path(self.config.get("data-folder")) / self.config.get("buildings-file-name")
 
     def get_logger_path_name(self):
         return self.config.get("logger-path-name")
+
+    def get_roads_layer_name(self):
+        return self.config.get("roads-layer-name")
+
+    def get_buildings_layer_name(self):
+        return self.config.get("buildings-layer-name")
