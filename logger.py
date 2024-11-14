@@ -1,0 +1,81 @@
+import logging
+import os
+
+from qgis.core import QgsMessageLog, Qgis
+
+from .config import Config
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
+
+class Logger:
+    """Logger singleton. Configures the logging and is then used throughout the application."""
+
+    _instance = None
+    logger = None
+    logger_path_name = None
+    SCRIPT_DIR = os.path.dirname(__file__)
+    LOG_FILE_PATH = os.path.join(SCRIPT_DIR, "app.log")
+
+    def __new__(cls, *args, **kwargs):
+        """Override __new__ to ensure only one instance of Logger is created."""
+        if not cls._instance:
+            cls._instance = super(Logger, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+
+    def __init__(self):
+        """Initialize the logger only if it's not already initialized."""
+        if not self.logger:
+            logger = logging.getLogger('root')
+            config_log_level = Config().get_log_level()
+            self.log_level = config_log_level
+            logger.setLevel(self.map_log_level(config_log_level))
+            self.logger = logger
+            self.logger_path_name = Config().get_logger_path_name()
+            self.set_file_handlers()
+            logger.info("Logger has been initialized.")
+
+    def map_log_level(self, log_level):
+        if log_level == "debug":
+            return logging.DEBUG
+        elif log_level == "info":
+            return logging.INFO
+        elif log_level == "warning":
+            return logging.WARNING
+        elif log_level == "error":
+            return logging.ERROR
+        elif log_level == "critical":
+            return logging.CRITICAL
+
+    def get_log_level(self):
+        return self.log_level
+
+    def set_file_handlers(self):
+        """Sets up file handlers with log rotation."""
+        file_handler = RotatingFileHandler(self.logger_path_name, maxBytes=1e6, backupCount=3)
+        file_handler.setLevel(self.map_log_level(self.log_level))
+        logging_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s  [File: %(filename)s, Line: %(lineno)d, Function: %(funcName)s]'
+        file_handler.setFormatter(logging.Formatter(logging_format))
+
+        timed_handler = TimedRotatingFileHandler(self.logger_path_name, when="midnight", interval=1, backupCount=7)
+        timed_handler.setLevel(logging.WARNING)
+        timed_handler.setFormatter(logging.Formatter(logging_format))
+
+        self.logger.addHandler(file_handler)
+        self.logger.addHandler(timed_handler)
+
+    def debug(self, message):
+        self.logger.debug(message)
+
+    def info(self, message):
+        self.logger.info(message)
+
+    def warning(self, message):
+        self.logger.warning(message)
+
+    def error(self, message):
+        self.logger.error(message)
+
+    def critical(self, message):
+        self.logger.critical(message)
+
+    def exception(self, message):
+        self.logger.exception(message)

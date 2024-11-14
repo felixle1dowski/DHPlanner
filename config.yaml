@@ -1,0 +1,19 @@
+---
+  # absolute path required
+  logger-path-name: "/home/le1/.local/share/QGIS/QGIS3/profiles/default/python/plugins/DHPlanner/app.log"
+  selection-layer-name: "selection"
+  # possible strategies:
+    # street-following: pipes have to be installed under the streets.
+    # greenfield: no rules for pipe installation.
+    # greenfield strategy is not yet implemented.
+  installation-strategy: "street-following"
+  # possible methods:
+    # one-step: method that aims to calculate detailed and accurate results.
+    # multi-step: heuristic method that aims to reduce needed computation ressources as much as possible.
+  method: "multi-step"
+  log-level: "debug"
+  # absolute path required
+  data-folder: "/home/le1/ba/ba1/Data"
+  # files for roads and buildings have to be placed inside the data-folder
+  roads-file-name: "roads.shp"
+  buildings-file-name: "buildings.shp"

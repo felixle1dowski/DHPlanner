@@ -1,0 +1,2 @@
+class NotYetImplementedException(Exception):
+    pass

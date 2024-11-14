@@ -1,0 +1,5 @@
+2024-11-14 16:05:07,784 - root - INFO - Logger has been initialized.  [File: logger.py, Line: 32, Function: __init__]
+2024-11-14 16:05:07,785 - root - INFO - Starting...  [File: logger.py, Line: 68, Function: info]
+2024-11-14 16:17:14,869 - root - INFO - Logger has been initialized.  [File: logger.py, Line: 32, Function: __init__]
+2024-11-14 16:17:14,870 - root - INFO - Starting...  [File: logger.py, Line: 68, Function: info]
+2024-11-14 16:24:16,958 - root - INFO - Starting...  [File: logger.py, Line: 68, Function: info]
