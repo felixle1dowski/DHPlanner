@@ -5,6 +5,7 @@ from qgis.core import (QgsProject, QgsSpatialIndex, QgsFeatureRequest, QgsVector
                        QgsMessageLog, Qgis, QgsField, QgsFeature)
 from qgis import processing
 from .logger import Logger
+from .preprocessing_result import PreprocessingResult
 
 
 class Preprocessing:
@@ -23,8 +24,7 @@ class Preprocessing:
         pass
 
     """Central method for preprocessing. Will start - and finish - the preprocessing pipeline."""
-
-    def start(self):
+    def start(self) -> PreprocessingResult:
         self.selection_layer = None
         # ToDo: Add back in, when we use files again instead of layers.
         # self.roads_layer_path = Config().get_roads_path()
@@ -50,6 +50,9 @@ class Preprocessing:
         self.__find_centroids_of_buildings()
         self.__assign_ids_to(self.buildings_centroids)
         Logger().info("Buildings have been preprocessed successfully.")
+        result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
+        return result
+
 
     # ToDo: needs to be tested.
     def __verify_layer(self, layer_name, verify_crs=False):

@@ -33,4 +33,5 @@ class MultiStepPipeline(DHCCreationPipeline):
         # mst_visualizer.visualize(mst_creator_result)
         # Logger().info("MST visualization finished.")
         Logger().info("Starting Preprocessing.")
-        self.preprocessing.start()
+        preprocessing_result = self.preprocessing.start()
+        self.graph_creator.start(preprocessing_result)
