@@ -11,7 +11,6 @@ class Logger:
 
     _instance = None
     logger = None
-    logger_path_name = None
     SCRIPT_DIR = os.path.dirname(__file__)
     LOG_FILE_PATH = os.path.join(SCRIPT_DIR, "app.log")
 
@@ -29,7 +28,6 @@ class Logger:
             self.log_level = config_log_level
             logger.setLevel(self.map_log_level(config_log_level))
             self.logger = logger
-            self.logger_path_name = Config().get_logger_path_name()
             self.set_file_handlers()
             logger.info("Logger has been initialized.")
 
@@ -50,12 +48,12 @@ class Logger:
 
     def set_file_handlers(self):
         """Sets up file handlers with log rotation."""
-        file_handler = RotatingFileHandler(self.logger_path_name, maxBytes=1e6, backupCount=3)
+        file_handler = RotatingFileHandler(self.LOG_FILE_PATH, maxBytes=1e6, backupCount=3)
         file_handler.setLevel(self.map_log_level(self.log_level))
         logging_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s  [File: %(filename)s, Line: %(lineno)d, Function: %(funcName)s]'
         file_handler.setFormatter(logging.Formatter(logging_format))
 
-        timed_handler = TimedRotatingFileHandler(self.logger_path_name, when="midnight", interval=1, backupCount=7)
+        timed_handler = TimedRotatingFileHandler(self.LOG_FILE_PATH, when="midnight", interval=1, backupCount=7)
         timed_handler.setLevel(logging.WARNING)
         timed_handler.setFormatter(logging.Formatter(logging_format))
 

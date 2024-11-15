@@ -49,6 +49,7 @@ class Preprocessing:
         Logger().info("Roads have been preprocessed successfully.")
         self.__find_centroids_of_buildings()
         self.__assign_ids_to(self.buildings_centroids)
+        self.__add_building_type_attribute()
         Logger().info("Buildings have been preprocessed successfully.")
         result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
         return result
@@ -170,16 +171,22 @@ class Preprocessing:
                                             'selected_building_centroids',
                                             'memory')
         building_centroids_data_provider = self.buildings_centroids.dataProvider()
-
+        building_centroids_data_provider.addAttributes([QgsField("Type", QVariant.String)])
+        self.buildings_centroids.updateFields()
         new_features = []
         for feature in selected_features:
             geom = feature.geometry()
             centroid_geom = geom.centroid()
             centroid_feature = QgsFeature()
             centroid_feature.setGeometry(centroid_geom)
-            centroid_feature.setAttributes([feature.id()])
             new_features.append(centroid_feature)
-
         building_centroids_data_provider.addFeatures(new_features)
         self.buildings_centroids.updateExtents()
         QgsProject.instance().addMapLayer(self.buildings_centroids)
+
+    def __add_building_type_attribute(self):
+        layer = self.buildings_centroids
+        layer.startEditing()
+        for feature in layer.getFeatures():
+            feature.setAttribute("Type", "building")
+            layer.updateFeature(feature)
