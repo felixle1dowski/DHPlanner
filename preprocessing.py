@@ -1,4 +1,6 @@
 from PyQt5.QtCore import QVariant
+
+from .dhp_utility import DhpUtility
 from .config import Config
 from qgis.core import (QgsProject, QgsSpatialIndex, QgsFeatureRequest, QgsVectorLayer,
                        QgsCoordinateReferenceSystem, QgsCoordinateTransform,
@@ -45,10 +47,10 @@ class Preprocessing:
         self.__verify_layer(Config().get_roads_layer_name(), True)
         self.__explode_road_lines()
         self.__measure_lengths_of_roads()
-        self.__assign_ids_to(self.selected_roads_exploded)
+        DhpUtility.assign_unique_id(self.selected_roads_exploded, "id")
         Logger().info("Roads have been preprocessed successfully.")
         self.__find_centroids_of_buildings()
-        self.__assign_ids_to(self.buildings_centroids)
+        DhpUtility.assign_unique_id(self.buildings_centroids, "id")
         self.__add_building_type_attribute()
         Logger().info("Buildings have been preprocessed successfully.")
         result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
