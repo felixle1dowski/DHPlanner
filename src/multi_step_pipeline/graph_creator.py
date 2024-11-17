@@ -1,12 +1,9 @@
-from .preprocessing_result import PreprocessingResult
-from .logger import Logger
-from .config import Config
-from .dhp_utility import DhpUtility
+from ..util.logger import Logger
+from ..util.dhp_utility import DhpUtility
 import networkx as nx
 from PyQt5.QtCore import QVariant
 import matplotlib.pyplot as plt
-from qgis.core import (QgsGeometry, QgsPointXY, QgsFeature,
-                       QgsWkbTypes, QgsProject, QgsExpression,
+from qgis.core import (QgsProject, QgsExpression,
                        QgsFeatureRequest, QgsField)
 from qgis import processing
 

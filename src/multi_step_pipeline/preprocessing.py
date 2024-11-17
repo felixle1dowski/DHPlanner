@@ -1,12 +1,12 @@
 from PyQt5.QtCore import QVariant
 
-from .dhp_utility import DhpUtility
-from .config import Config
+from ..util.dhp_utility import DhpUtility
+from ..util.config import Config
 from qgis.core import (QgsProject, QgsSpatialIndex, QgsFeatureRequest, QgsVectorLayer,
                        QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-                       QgsMessageLog, Qgis, QgsField, QgsFeature)
+                       QgsField, QgsFeature)
 from qgis import processing
-from .logger import Logger
+from ..util.logger import Logger
 from .preprocessing_result import PreprocessingResult
 
 

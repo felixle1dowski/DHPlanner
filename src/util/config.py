@@ -4,7 +4,6 @@ try:
 except ImportError:
     from yaml import Loader
 from .config_exception import ConfigException
-from pathlib import Path
 
 import os
 
@@ -16,7 +15,7 @@ class Config:
                        "buildings-file-name"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
-    CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "config.yaml")
+    CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
     _instance = None
     config = None
 

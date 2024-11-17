@@ -1,9 +1,5 @@
-from .dhc_creation_pipeline import DHCCreationPipeline
-from .preprocessing import Preprocessing
-from .graph_creator import GraphCreator
-from .mst_creator import MSTCreator
-from .mst_visualizer import MSTVisualizer
-from .logger import Logger
+from ..dhc_creation_pipeline import DHCCreationPipeline
+from ..util.logger import Logger
 
 
 class MultiStepPipeline(DHCCreationPipeline):

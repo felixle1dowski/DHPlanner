@@ -23,15 +23,14 @@
 """
 
 import os
-from time import sleep
 
 from qgis.PyQt import QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.core import Qgis
 from qgis.core import QgsMessageLog
-from .config import Config
-from .logger import Logger
-from .dhc_creation_pipeline_factory import DHCCreationPipelineFactory
+from .src.util.config import Config
+from .src.util.logger import Logger
+from .src.dhc_creation_pipeline_factory import DHCCreationPipelineFactory
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dhc_planner_dockwidget_base.ui'))

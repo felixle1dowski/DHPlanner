@@ -1,11 +1,10 @@
-from .config import Config
-from .not_yet_implemented_exception import NotYetImplementedException
-from .dhc_creation_pipeline import DHCCreationPipeline
-from .preprocessing import Preprocessing
-from .graph_creator import GraphCreator
-from .mst_creator import MSTCreator
-from .mst_visualizer import MSTVisualizer
-from .multi_step_pipeline import MultiStepPipeline
+from .util.config import Config
+from .util.not_yet_implemented_exception import NotYetImplementedException
+from .multi_step_pipeline.preprocessing import Preprocessing
+from .multi_step_pipeline.graph_creator import GraphCreator
+from .multi_step_pipeline.mst_creator import MSTCreator
+from .multi_step_pipeline.mst_visualizer import MSTVisualizer
+from .multi_step_pipeline.multi_step_pipeline import MultiStepPipeline
 
 
 class DHCCreationPipelineFactory:

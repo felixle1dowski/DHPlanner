@@ -1,8 +1,6 @@
 import logging
 import os
 
-from qgis.core import QgsMessageLog, Qgis
-
 from .config import Config
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
@@ -12,7 +10,7 @@ class Logger:
     _instance = None
     logger = None
     SCRIPT_DIR = os.path.dirname(__file__)
-    LOG_FILE_PATH = os.path.join(SCRIPT_DIR, "app.log")
+    LOG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../app.log")
 
     def __new__(cls, *args, **kwargs):
         """Override __new__ to ensure only one instance of Logger is created."""
