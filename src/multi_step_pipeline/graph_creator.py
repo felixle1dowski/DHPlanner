@@ -5,6 +5,7 @@ from ..util.dhp_utility import DhpUtility
 from ..util.config import Config
 from .graph_construction_exception import GraphConstructionException
 from .node_information import NodeInformation
+from .graph_creator_result import GraphCreatorResult
 import networkx as nx
 from PyQt5.QtCore import QVariant
 import matplotlib.pyplot as plt
@@ -53,6 +54,8 @@ class GraphCreator:
         Logger().info("Constructing roads graph.")
         self.__add_access_points_to_roads_layer(only_access_points)
         self.__construct_roads_graph()
+        result = GraphCreatorResult(self.roads_graph, self.building_centroids, self.exploded_roads, access_points_lines)
+        return result
 
 
     def __construct_roads_graph(self):
