@@ -18,13 +18,21 @@ class DhpUtility:
 
     @staticmethod
     def assign_unique_id(layer, feature, id_field_name):
-        """assigns unique ID to one feature of the layer.
+        """Assigns a unique ID to one feature of the layer.
         Caution: Layer still has to be updated after calling this method!"""
-        max_id = max([feature[f'{id_field_name}'] for feature in layer.getFeatures() if
-                      isinstance(feature[f'{id_field_name}'], (int, float))], default=0)
+
+        # Check if the field exists
+        id_field_index = layer.fields().indexFromName(id_field_name)
+        if id_field_index == -1:
+            raise ValueError(f"Field '{id_field_name}' does not exist in the layer.")
+        max_id = max(
+            [f.attribute(id_field_name) for f in layer.getFeatures() if
+             isinstance(f.attribute(id_field_name), (int, float))],
+            default=1
+        )
         if max_id is None:
             max_id = 1
-        feature.setAttribute(f'{id_field_name}', max_id+1)
+        feature.setAttribute(id_field_index, max_id + 1)
 
     @staticmethod
     def assign_value_to_field(layer, field_name, feature, value):
@@ -111,3 +119,11 @@ class DhpUtility:
         layer.commitChanges()
 
         print(f"Values copied from '{source_field_name}' to '{target_field_name}'.")
+
+    @staticmethod
+    def create_new_field(layer, new_field_name, type: QVariant):
+        layer.startEditing()
+        layer_provider = layer.dataProvider()
+        field = QgsField(new_field_name, type)
+        layer_provider.addAttributes([field])
+        layer.commitChanges()
