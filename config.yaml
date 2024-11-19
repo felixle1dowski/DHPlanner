@@ -19,3 +19,4 @@
   # files for roads and buildings have to be placed inside the data-folder
   roads-file-name: "roads.shp"
   buildings-file-name: "buildings.shp"
+  crs: "EPSG:4839"

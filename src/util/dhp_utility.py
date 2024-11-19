@@ -5,16 +5,35 @@ from .logger import Logger
 class DhpUtility:
     """Offers utility methods for DHP"""
     @staticmethod
-    def assign_unique_id(layer, id_field_name):
+    def assign_unique_ids(layer, id_field_name):
         """Assigns unique IDs."""
         layer.startEditing()
         layer.dataProvider().addAttributes([QgsField(f"{id_field_name}", QVariant.Int)])
         layer.updateFields()
-        idx = 0
+        idx = 1
         for feature in layer.getFeatures():
             feature.setAttribute(f"{id_field_name}", idx)
             layer.updateFeature(feature)
             idx += 1
+
+    @staticmethod
+    def assign_unique_id(layer, feature, id_field_name):
+        """assigns unique ID to one feature of the layer.
+        Caution: Layer still has to be updated after calling this method!"""
+        max_id = max([feature[f'{id_field_name}'] for feature in layer.getFeatures() if
+                      isinstance(feature[f'{id_field_name}'], (int, float))], default=0)
+        if max_id is None:
+            max_id = 1
+        feature.setAttribute(f'{id_field_name}', max_id+1)
+
+    @staticmethod
+    def assign_value_to_field(layer, field_name, feature, value):
+        layer.startEditing()
+        field_idx = layer.fields().indexFromName(field_name)
+        feature.setAttribute(field_idx, value)
+        layer.updateFeature(feature)
+        layer.commitChanges()
+
 
     @staticmethod
     def add_field_and_copy_values(layer, new_field_name, existing_field_name):

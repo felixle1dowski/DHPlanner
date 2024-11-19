@@ -4,6 +4,7 @@ try:
 except ImportError:
     from yaml import Loader
 from .config_exception import ConfigException
+from qgis.core import QgsCoordinateReferenceSystem
 
 import os
 
@@ -12,7 +13,7 @@ class Config:
     REQUIRED_FIELDS = ["logger-path-name","buildings-layer-name", "roads-layer-name",
                        "selection-layer-name", "installation-strategy",
                        "log-level", "method", "data-folder", "roads-file-name",
-                       "buildings-file-name"]
+                       "buildings-file-name", "crs"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
@@ -85,3 +86,6 @@ class Config:
 
     def get_buildings_layer_name(self):
         return self.config.get("buildings-layer-name")
+
+    def get_crs(self):
+        return QgsCoordinateReferenceSystem('EPSG:4839')

@@ -1,0 +1,2 @@
+class GraphConstructionException(Exception):
+    pass
