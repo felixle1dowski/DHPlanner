@@ -26,7 +26,7 @@ class GraphCreator:
     graph_representation = None
     DISTANCE_OF_POINTS = 5.0
     """Interval of Points that are to be regarded in the calculation of access points."""
-    DRAW_GRAPH = True
+    DRAW_GRAPH = False
     """Indiciates whether there's a plot of a graph to be generated for debugging purposes."""
     PERP_LINE_LENGTH = 20.0
     """Determines the length of the perpendicular lines that are used to split road lines."""
@@ -57,7 +57,7 @@ class GraphCreator:
         result = GraphCreatorResult(self.roads_graph, self.building_centroids, self.exploded_roads, access_points_lines)
         return result
 
-
+    # ToDo: Check with Set for duplicates. Should speed this up!
     def __construct_roads_graph(self):
         """Constructs the roads graph only from roads."""
         self.roads_graph = nx.Graph()
@@ -74,8 +74,12 @@ class GraphCreator:
             start_point_already_added = self.__check_if_node_already_added(start_point, road_nodes)
             is_ap = False
             if start_point_already_added is None:
-                start_node = NodeInformation(False, None, start_point)
-                roads_graph.add_node(start_node)
+                start_node_info = {
+                    'has_ap': False,
+                    'ap_id': None,
+                    'coordinates': start_point
+                }
+                roads_graph.add_node(start_point, **start_node_info)
                 road_nodes.append(start_point)
             else:
                 start_point = start_point_already_added
@@ -83,10 +87,18 @@ class GraphCreator:
             if end_point_already_added is None:
                 if road.attributes()[has_ap_idx] == "True":
                     ap_id = road.attributes()[ap_id_idx]
-                    end_node = NodeInformation(True, ap_id, end_point)
+                    end_node_info = {
+                        'has_ap': True,
+                        'ap_id': ap_id,
+                        'coordinates': end_point
+                    }
                 else:
-                    end_node = NodeInformation(False, None, end_point)
-                roads_graph.add_node(end_node)
+                    end_node_info = {
+                        'has_ap': False,
+                        'ap_id': None,
+                        'coordinates': end_point
+                    }
+                roads_graph.add_node(end_point, **end_node_info)
                 road_nodes.append(end_point)
             else:
                 end_point = end_point_already_added
@@ -96,9 +108,9 @@ class GraphCreator:
             id = road.attributes()[id_idx]
             roads_graph.add_edge(start_point, end_point, weight=weight, id=id)
             Logger().debug(nx.info(roads_graph))
-            self.roads_graph = roads_graph
-            if self.DRAW_GRAPH:
-                self.__plot_graph(roads_graph)
+        self.roads_graph = roads_graph
+        if self.DRAW_GRAPH:
+            self.__plot_graph(roads_graph)
 
 
     def __check_if_node_already_added(self, node, node_list: list):

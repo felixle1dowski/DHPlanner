@@ -16,22 +16,14 @@ class MultiStepPipeline(DHCCreationPipeline):
         self.mst_visualizer = mst_visualizer
 
     def start(self):
-        # Logger().info("Preprocessing started.")
-        # preprocessing_result = preprocessing.get_result()
-        # Logger().info("Preprocessing finished.")
-        # Logger().info("Graph creation started.")
-        # graph_creator_result = graph_creator.get_result(preprocessing_result)
-        # Logger().info("Graph creation finished.")
-        # Logger().info("MST creation started.")
-        # mst_creator_result = mst_creator.get_result(graph_creator_result)
-        # Logger().info("MST creation finished.")
-        # Logger().info("MST visualization started.")
-        # mst_visualizer.visualize(mst_creator_result)
-        # Logger().info("MST visualization finished.")
         Logger().info("Starting Preprocessing.")
         preprocessing_result = self.preprocessing.start()
         Logger().info("Finished Preprocessing.")
         Logger().info("Starting Graph Creation.")
         self.graph_creator.set_preprocessing_result(preprocessing_result)
-        self.graph_creator.start()
+        graph_creation_result = self.graph_creator.start()
+        Logger().info("Finished Graph Creation.")
+        Logger().info("Starting MST Creation.")
+        self.mst_creator.set_graph_creator_result(graph_creation_result)
+        self.mst_creator.start()
 
