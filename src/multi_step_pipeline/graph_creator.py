@@ -18,6 +18,7 @@ from qgis.core import (QgsProject, QgsExpression,
 from qgis import processing
 from dataclasses import dataclass
 
+
 class GraphCreator:
 
     class GraphNode:
@@ -33,10 +34,14 @@ class GraphCreator:
     class GraphEdge:
         node_1 = None
         node_2 = None
+        weight = None
+        id = None
 
-        def __init__(self, node_1, node_2):
+        def __init__(self, node_1, node_2, weight, id):
             self.node_1 = node_1
             self.node_2 = node_2
+            self.weight = weight
+            self.id = id
 
     ready_to_start = False
     exploded_roads = None
@@ -72,76 +77,97 @@ class GraphCreator:
         self.__add_access_points_ids_to_buildings(access_points_lines)
         Logger().info("Constructing roads graph.")
         self.__add_access_points_to_roads_layer(only_access_points)
-        self.__construct_roads_graph()
+        nodes, edges = self.__collect_roads_graph_nodes_and_edges()
+        self.__construct_nx_graph(nodes, edges)
+
         result = GraphCreatorResult(self.roads_graph, self.building_centroids, self.exploded_roads, access_points_lines)
         return result
 
     # ToDo: Check with Set for duplicates. Should speed this up!
-    def __construct_roads_graph(self):
+    def __collect_roads_graph_nodes_and_edges(self):
         """Constructs the roads graph only from roads."""
-        self.roads_graph = nx.Graph()
-        roads_graph = self.roads_graph
         roads = self.exploded_roads.getFeatures()
         has_ap_idx = self.exploded_roads.fields().indexFromName('has_ap')
         ap_id_idx = self.exploded_roads.fields().indexFromName('ap_id')
 
         road_nodes = []
-        aps = []
+        nodes = {}
+        edges = []
+        # We iterate over every road in our selected roads to add them to our graph
         for road in roads:
             road_line = road.geometry().asPolyline()
             start_point = road_line[0]
             end_point = road_line[1]
             start_point_already_added = self.__check_if_node_already_added(start_point, road_nodes)
-            is_ap = False
+            # we only want to add the starting point of a road, if it's not already present in the graph
             if start_point_already_added is None:
-                start_node_info = {
-                    'has_ap': False,
-                    'ap_id': None,
-                    'coordinates': start_point
-                }
-                roads_graph.add_node(start_point, **start_node_info)
                 road_nodes.append(start_point)
+                new_start_node = GraphCreator.GraphNode(False, None, start_point)
+                nodes[start_point] = new_start_node
+                # ToDo: Is ap upgrade needed here?
                 Logger().debug(f'added road_node starting point of road with id {road.id()}')
             else:
                 start_point = start_point_already_added
                 Logger().debug(f'starting point of road_node with id {road.id()} was already added')
+            if start_point_already_added is not None and road.attributes()[has_ap_idx] == "True":
+                start_point_to_upgrade = nodes[start_point]
+                start_point_to_upgrade.has_ap = True
+                start_point_to_upgrade.ap_id = road.attributes()[ap_id_idx]
+                Logger().debug(f'an end-node was upgraded to have an ap. Ap with id '
+                               f'{start_point_to_upgrade.ap_id} was added.')
+        ###############################################################################
+
             end_point_already_added = self.__check_if_node_already_added(end_point, road_nodes)
+            # same thing for the end point of a road. Only add it, if it's not already present in the graph
             if end_point_already_added is None:
                 ap_id = None
                 if road.attributes()[has_ap_idx] == "True":
-                    ap_id = road.attributes()[ap_id_idx]
-                    end_node_info = {
-                        'has_ap': True,
-                        'ap_id': ap_id,
-                        'coordinates': end_point
-                    }
+                    new_end_node = GraphCreator.GraphNode(True, ap_id, end_point)
                 else:
-                    end_node_info = {
-                        'has_ap': False,
-                        'ap_id': ap_id,
-                        'coordinates': end_point
-                    }
-                roads_graph.add_node(end_point, **end_node_info)
+                    new_end_node = GraphCreator.GraphNode(False, ap_id, end_point)
                 road_nodes.append(end_point)
+                nodes[end_point] = new_end_node
                 Logger().debug(f'ap with id {ap_id} was added to road with id {road.id()}')
             else:
                 end_point = end_point_already_added
                 Logger().debug(f'ending point of road_node with id {road.id()} was already added')
+            # however, if we come from a different direction to a node and from this direction it "has" an ap
+            # we need to upgrade the node to have an ap.
+            if end_point_already_added is not None and road.attributes()[has_ap_idx] == "True":
+                end_point_to_upgrade = nodes[end_point]
+                end_point_to_upgrade.has_ap = True
+                end_point_to_upgrade.ap_id = road.attributes()[ap_id_idx]
+                Logger().debug(f'an end-node was upgraded to have an ap. Ap with id '
+                               f'{end_point_to_upgrade.ap_id} was added.')
+            ###############################################################################
+
             weight_idx = road.fieldNameIndex('length')
             weight = road.attributes()[weight_idx]
             id_idx = road.fieldNameIndex('id')
             id = road.attributes()[id_idx]
-            roads_graph.add_edge(start_point, end_point, weight=weight, id=id)
-            Logger().debug(nx.info(roads_graph))
-        self.roads_graph = roads_graph
-        if self.DRAW_GRAPH:
-            self.__plot_graph(roads_graph)
+            edges.append(GraphCreator.GraphEdge(start_point, end_point, weight, id))
+        return (nodes, edges)
 
     def __check_if_node_already_added(self, node, node_list: list):
         for existing_node in node_list:
             if node.x() == existing_node.x() and node.y() == existing_node.y():
                 return existing_node
         return None
+
+    def __construct_nx_graph(self, nodes, edges):
+        roads_graph = nx.Graph()
+        for node_point, node_information in nodes.items():
+            node_info = {
+                'has_ap': node_information.has_ap,
+                'ap_id': node_information.ap_id,
+                'coordinates': node_information.coordinates
+            }
+            roads_graph.add_node(node_point, **node_info)
+        for edge in edges:
+            roads_graph.add_edge(edge.node_1, edge.node_2, weight=edge.weight, id=edge.id)
+        self.roads_graph = roads_graph
+        if self.DRAW_GRAPH:
+            self.__plot_graph(roads_graph)
 
     def __plot_graph(self, roads_graph: nx.Graph):
         plt.figure(figsize=(50,50))
