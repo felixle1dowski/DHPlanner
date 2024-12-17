@@ -8,6 +8,7 @@ class MSTCreator:
     building_centroids = None
     exploded_roads = None
     access_point_lines = None
+    LOG_PATH = False
     DESIRED_CRS = QgsCoordinateReferenceSystem('EPSG:4839')
 
     def __init__(self):
@@ -58,7 +59,8 @@ class MSTCreator:
                                  range(len(path_info['path']) - 1)]
                 edge_ids = [self.street_graph.get_edge_data(u, v).get('id') for u, v in edges_in_path]
                 shortest_path_graph.add_edge(source, target, weight=path_info['length'], edge_ids=edge_ids)
-                self.__log_path(source, target, edge_ids)
+                if self.LOG_PATH:
+                    self.__log_path(source, target, edge_ids)
         return shortest_path_graph
 
     def __log_path(self, source, target, edge_ids):

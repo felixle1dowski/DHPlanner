@@ -32,7 +32,10 @@ class DhpUtility:
         )
         if max_id is None:
             max_id = 1
-        feature.setAttribute(id_field_index, max_id + 1)
+        unique_id = max_id + 1
+        feature.setAttribute(id_field_index, unique_id)
+        return unique_id
+
 
     @staticmethod
     def assign_value_to_field(layer, field_name, feature, value):

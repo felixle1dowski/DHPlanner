@@ -1,4 +1,5 @@
 import math
+from operator import truediv
 
 from ..util.logger import Logger
 from ..util.dhp_utility import DhpUtility
@@ -18,6 +19,24 @@ from qgis import processing
 from dataclasses import dataclass
 
 class GraphCreator:
+
+    class GraphNode:
+        has_ap : bool
+        ap_id : int
+        coordinates : QgsPointXY
+
+        def __init__(self, has_ap, ap_id, coordinates):
+            self.has_ap = has_ap
+            self.ap_id = ap_id
+            self.coordinates = coordinates
+
+    class GraphEdge:
+        node_1 = None
+        node_2 = None
+
+        def __init__(self, node_1, node_2):
+            self.node_1 = node_1
+            self.node_2 = node_2
 
     ready_to_start = False
     exploded_roads = None
@@ -67,6 +86,7 @@ class GraphCreator:
         ap_id_idx = self.exploded_roads.fields().indexFromName('ap_id')
 
         road_nodes = []
+        aps = []
         for road in roads:
             road_line = road.geometry().asPolyline()
             start_point = road_line[0]
@@ -81,10 +101,13 @@ class GraphCreator:
                 }
                 roads_graph.add_node(start_point, **start_node_info)
                 road_nodes.append(start_point)
+                Logger().debug(f'added road_node starting point of road with id {road.id()}')
             else:
                 start_point = start_point_already_added
+                Logger().debug(f'starting point of road_node with id {road.id()} was already added')
             end_point_already_added = self.__check_if_node_already_added(end_point, road_nodes)
             if end_point_already_added is None:
+                ap_id = None
                 if road.attributes()[has_ap_idx] == "True":
                     ap_id = road.attributes()[ap_id_idx]
                     end_node_info = {
@@ -95,13 +118,15 @@ class GraphCreator:
                 else:
                     end_node_info = {
                         'has_ap': False,
-                        'ap_id': None,
+                        'ap_id': ap_id,
                         'coordinates': end_point
                     }
                 roads_graph.add_node(end_point, **end_node_info)
                 road_nodes.append(end_point)
+                Logger().debug(f'ap with id {ap_id} was added to road with id {road.id()}')
             else:
                 end_point = end_point_already_added
+                Logger().debug(f'ending point of road_node with id {road.id()} was already added')
             weight_idx = road.fieldNameIndex('length')
             weight = road.attributes()[weight_idx]
             id_idx = road.fieldNameIndex('id')
@@ -111,7 +136,6 @@ class GraphCreator:
         self.roads_graph = roads_graph
         if self.DRAW_GRAPH:
             self.__plot_graph(roads_graph)
-
 
     def __check_if_node_already_added(self, node, node_list: list):
         for existing_node in node_list:
@@ -210,15 +234,19 @@ class GraphCreator:
         DhpUtility.create_new_field(roads, "has_ap", QVariant.String)
         DhpUtility.create_new_field(roads, "ap_id", QVariant.Int)
         road_split_points = {}
+        # we need to obtain the right roads further down the line
+        # we want to obtain the roads that have an access point on them.
         road_id_idx = access_points.fields().indexFromName('road_id')
         roads.startEditing()
+        # first we add all the roads that are to be split and the
+        # access points we want to split them by.
         for access_point in access_points_features:
             road_id = access_point.attributes()[road_id_idx]
-            Logger().debug(f"Adding road with road id {road_id}")
+            Logger().debug(f"road to split added: {road_id}.")
             if road_id not in road_split_points:
                 road_split_points[road_id] = []
             road_split_points[road_id].append(access_point)
-            Logger().debug(f"Adding point with point id {access_point.id()}")
+            Logger().debug(f"road with id {road_id} to be split at access point {access_point.id()}.")
         for road_id, p in road_split_points.items():
             p_dict = {}
             reconnection_list = []
@@ -226,50 +254,77 @@ class GraphCreator:
             road_line = road.geometry().asPolyline()
             road_start = road_line[0]
             road_end = road_line[-1]
-            if len(p) > 1:
-                for point in p:
-                    point_x = point.geometry().asPoint().x()
-                    point_y = point.geometry().asPoint().y()
-                    dx = abs(point_x - road_start.x())
-                    dy = abs(point_y - road_start.y())
-                    distance = dx + dy
-                    p_dict[point.id()] = distance
+            # if the road is to be split at multiple points, we need to obtain
+            # the distance of each access point from the starting point of the road
+            for point in p:
+                point_x = point.geometry().asPoint().x()
+                point_y = point.geometry().asPoint().y()
+                dx = abs(point_x - road_start.x())
+                dy = abs(point_y - road_start.y())
+                distance = dx + dy
+                p_dict[point.id()] = distance
+            # now we can order the points that we have to split the road by
+            # thus we can connect each point by a line starting from the starting point
+            # of the road.
             if len(p_dict) > 0:
                 dict(sorted(p_dict.items()))
+            # ToDo: No here's the culprit actually. If the starting point is the road piece that is
+            # ToDo: Connected to a access point, we can't recognize it. Can we??
             reconnection_list.append((road_start, None))
-            if len(p) == 1:
-                point = p[0]
-                pxy = QgsPointXY(point.geometry().asPoint().x(), point.geometry().asPoint().y())
-                reconnection_list.append((pxy, point))
             for p_id in p_dict.keys():
                 point = access_points.getFeature(p_id)
                 pxy = QgsPointXY(point.geometry().asPoint().x(), point.geometry().asPoint().y())
                 reconnection_list.append((pxy, point))
             reconnection_list.append((road_end, None))
             source_attributes = road.attributes()
-            roads_provider.deleteFeatures([road_id])
             length_of_reconnection_list = len(reconnection_list)
             iteration = 0
+            # ToDo: or well, something's wrong here:
             for i in range(len(reconnection_list) - 1):
-                is_last = (iteration == (length_of_reconnection_list - 2))
+                is_last_iteration = (iteration == (length_of_reconnection_list - 2))
                 first_element = reconnection_list[i]
                 second_element = reconnection_list[i + 1]
+                end_element = reconnection_list[-1]
                 pxy_1 = first_element[0]
                 pxy_2 = second_element[0]
+                pxy_end = end_element[0]
+
+                # if the road is very short there is a chance that the access point is on the end
+                # point of the road. We don't have to split the road then and can break immediately.
+                condition = iteration == 0 and (pxy_1 == pxy_2 or pxy_2 == pxy_end) and length_of_reconnection_list <= 3
+                if condition:
+                    line_geometry = QgsGeometry.fromPolylineXY([pxy_1, pxy_end])
+                    feature = QgsFeature()
+                    feature.setGeometry(line_geometry)
+                    feature.setAttributes(source_attributes)
+                    new_road_id = DhpUtility.assign_unique_id(roads, feature, "id")
+                    DhpUtility.assign_value_to_field(roads, "length", feature, line_geometry.length())
+                    DhpUtility.assign_value_to_field(access_points, "road_id", second_element[1], new_road_id)
+                    DhpUtility.assign_value_to_field(roads, "has_ap", feature, "True")
+                    ap_id = second_element[1].id()
+                    DhpUtility.assign_value_to_field(roads, "ap_id", feature, ap_id)
+                    roads_provider.addFeature(feature)
+                    break
+
                 line_geometry = QgsGeometry.fromPolylineXY([pxy_1, pxy_2])
                 feature = QgsFeature()
                 feature.setGeometry(line_geometry)
                 feature.setAttributes(source_attributes)
-                DhpUtility.assign_unique_id(roads, feature, "id")
+                new_road_id = DhpUtility.assign_unique_id(roads, feature, "id")
                 DhpUtility.assign_value_to_field(roads, "length", feature, line_geometry.length())
-                if not is_last:
+                if not is_last_iteration:
                     DhpUtility.assign_value_to_field(roads, "has_ap", feature, "True")
                     ap_id = second_element[1].id()
                     DhpUtility.assign_value_to_field(roads, "ap_id", feature, ap_id)
+                    # we also need to update the value in the access points.
+                    DhpUtility.assign_value_to_field(access_points, "road_id", second_element[1], new_road_id)
+
+                # ToDo: Can a access point be ON the end point?
                 else:
                     DhpUtility.assign_value_to_field(roads, "has_ap", feature, "False")
                 roads_provider.addFeature(feature)
                 iteration += 1
+            roads_provider.deleteFeatures([road_id])
         roads.commitChanges()
 
     def __split_roads_with_point(self):
