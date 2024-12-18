@@ -104,7 +104,6 @@ class GraphCreator:
                 road_nodes.append(start_point)
                 new_start_node = GraphCreator.GraphNode(False, None, start_point)
                 nodes[start_point] = new_start_node
-                # ToDo: Is ap upgrade needed here?
                 Logger().debug(f'added road_node starting point of road with id {road.id()}')
             else:
                 start_point = start_point_already_added
@@ -294,8 +293,6 @@ class GraphCreator:
             # of the road.
             if len(p_dict) > 0:
                 dict(sorted(p_dict.items()))
-            # ToDo: No here's the culprit actually. If the starting point is the road piece that is
-            # ToDo: Connected to a access point, we can't recognize it. Can we??
             reconnection_list.append((road_start, None))
             for p_id in p_dict.keys():
                 point = access_points.getFeature(p_id)
@@ -305,7 +302,6 @@ class GraphCreator:
             source_attributes = road.attributes()
             length_of_reconnection_list = len(reconnection_list)
             iteration = 0
-            # ToDo: or well, something's wrong here:
             for i in range(len(reconnection_list) - 1):
                 is_last_iteration = (iteration == (length_of_reconnection_list - 2))
                 first_element = reconnection_list[i]
@@ -345,7 +341,6 @@ class GraphCreator:
                     # we also need to update the value in the access points.
                     DhpUtility.assign_value_to_field(access_points, "road_id", second_element[1], new_road_id)
 
-                # ToDo: Can a access point be ON the end point?
                 else:
                     DhpUtility.assign_value_to_field(roads, "has_ap", feature, "False")
                 roads_provider.addFeature(feature)
