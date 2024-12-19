@@ -9,9 +9,11 @@ class MultiStepPipeline(DHCCreationPipeline):
     graph_creator = None
     mst_creator = None
     mst_visualizer = None
+    clustering_first_stage = None
 
-    def __init__(self, preprocessor, graph_creator, mst_creator, mst_visualizer):
+    def __init__(self, preprocessor, clustering_first_stage, graph_creator, mst_creator, mst_visualizer):
         self.preprocessing = preprocessor
+        self.clustering_first_stage = clustering_first_stage
         self.graph_creator = graph_creator
         self.mst_creator = mst_creator
         self.mst_visualizer = mst_visualizer
@@ -20,14 +22,18 @@ class MultiStepPipeline(DHCCreationPipeline):
         Logger().info("Starting Preprocessing.")
         preprocessing_result = self.timed_wrapper(self.preprocessing.start)
         Logger().info("Finished Preprocessing.")
+        Logger().info("Starting Clustering.")
+        self.clustering_first_stage.set_preprocessing_result(preprocessing_result.building_centroids)
+        self.timed_wrapper(self.clustering_first_stage.start)
+        Logger().info("Finished Clustering.")
         Logger().info("Starting Graph Creation.")
-        self.graph_creator.set_preprocessing_result(preprocessing_result)
-        graph_creation_result = self.timed_wrapper(self.graph_creator.start)
-        Logger().info("Finished Graph Creation.")
-        Logger().info("Starting MST Creation.")
-        self.mst_creator.set_graph_creator_result(graph_creation_result)
-        self.timed_wrapper(self.mst_creator.start)
-        Logger().info("Finished MST Creation.")
+        # self.graph_creator.set_preprocessing_result(preprocessing_result)
+        # graph_creation_result = self.timed_wrapper(self.graph_creator.start)
+        # Logger().info("Finished Graph Creation.")
+        # Logger().info("Starting MST Creation.")
+        # self.mst_creator.set_graph_creator_result(graph_creation_result)
+        # self.timed_wrapper(self.mst_creator.start)
+        # Logger().info("Finished MST Creation.")
 
     def timed_wrapper(self, function_call, *args, **kwargs):
         function_name = self.get_fully_qualified_name(function_call)

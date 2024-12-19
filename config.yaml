@@ -1,6 +1,4 @@
 ---
-  # absolute path required
-  logger-path-name: "/home/le1/.local/share/QGIS/QGIS3/profiles/default/python/plugins/DHPlanner/app.log"
   selection-layer-name: "selection"
   roads-layer-name: "roads"
   buildings-layer-name: "buildings"
@@ -15,8 +13,6 @@
   method: "multi-step"
   log-level: "debug"
   # absolute path required
-  data-folder: "/home/le1/ba/ba1/Data"
-  # files for roads and buildings have to be placed inside the data-folder
   roads-file-name: "roads.shp"
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"

@@ -10,13 +10,13 @@ import os
 
 class Config:
 
-    REQUIRED_FIELDS = ["logger-path-name","buildings-layer-name", "roads-layer-name",
+    REQUIRED_FIELDS = ["buildings-layer-name", "roads-layer-name",
                        "selection-layer-name", "installation-strategy",
-                       "log-level", "method", "data-folder", "roads-file-name",
-                       "buildings-file-name", "crs"]
+                       "log-level", "method", "crs"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
+    DEBUG_FOLDER = os.path.join(SCRIPT_DIR, "../debug")
     _instance = None
     config = None
 
@@ -89,3 +89,6 @@ class Config:
 
     def get_crs(self):
         return QgsCoordinateReferenceSystem('EPSG:4839')
+
+    def get_debug_folder_path(self):
+        return self.DEBUG_FOLDER
