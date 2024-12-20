@@ -16,7 +16,7 @@ class Config:
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
-    DEBUG_FOLDER = os.path.join(SCRIPT_DIR, "../debug")
+    DEBUG_FOLDER = os.path.join(SCRIPT_DIR, "../../debug/")
     _instance = None
     config = None
 

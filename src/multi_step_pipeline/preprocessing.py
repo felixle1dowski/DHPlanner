@@ -4,7 +4,7 @@ from ..util.dhp_utility import DhpUtility
 from ..util.config import Config
 from qgis.core import (QgsProject, QgsSpatialIndex, QgsFeatureRequest, QgsVectorLayer,
                        QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-                       QgsField, QgsFeature)
+                       QgsField, QgsFeature, QgsProcessingFeatureSourceDefinition)
 from qgis import processing
 from ..util.logger import Logger
 from .preprocessing_result import PreprocessingResult
@@ -167,23 +167,18 @@ class Preprocessing:
             layer.updateFeature(feature)
 
     def __find_centroids_of_buildings(self):
-        # Create new temporary layer. ToDo: Do this earlier!
-        selected_features = self.buildings_layer.selectedFeatures()
-        self.buildings_centroids = QgsVectorLayer(f'Point?crs={self.DESIRED_CRS}',
-                                            'selected_building_centroids',
-                                            'memory')
+        params = {
+            'INPUT': QgsProcessingFeatureSourceDefinition(
+                self.buildings_layer.source(),
+                selectedFeaturesOnly=True
+            ),
+            'OUTPUT': 'memory:'
+        }
+        result = processing.run("native:pointonsurface", params)
+        self.buildings_centroids = result['OUTPUT']
         building_centroids_data_provider = self.buildings_centroids.dataProvider()
         building_centroids_data_provider.addAttributes([QgsField("Type", QVariant.String)])
         self.buildings_centroids.updateFields()
-        new_features = []
-        for feature in selected_features:
-            geom = feature.geometry()
-            centroid_geom = geom.centroid()
-            centroid_feature = QgsFeature()
-            centroid_feature.setGeometry(centroid_geom)
-            new_features.append(centroid_feature)
-        building_centroids_data_provider.addFeatures(new_features)
-        self.buildings_centroids.updateExtents()
         QgsProject.instance().addMapLayer(self.buildings_centroids)
 
     def __add_building_type_attribute(self):
