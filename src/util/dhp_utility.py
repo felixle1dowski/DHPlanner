@@ -1,5 +1,5 @@
 from PyQt5.QtCore import QVariant
-from qgis.core import QgsField
+from qgis.core import QgsField, QgsFeatureRequest
 from .logger import Logger
 
 class DhpUtility:
@@ -44,6 +44,21 @@ class DhpUtility:
         feature.setAttribute(field_idx, value)
         layer.updateFeature(feature)
         layer.commitChanges()
+
+    @staticmethod
+    def assign_value_to_field_by_id(layer, id_field_name, id_value, value_field_name, value):
+        """Usable for custom ids."""
+        layer.startEditing()
+        field_idx = layer.fields().indexFromName(id_field_name)
+        value_field_idx = layer.fields().indexFromName(value_field_name)
+        expression = f"'{id_field_name}' = '{id_value}'"
+        request = QgsFeatureRequest().setFilterExpression(expression)
+        for feature in layer.getFeatures(request):
+            feature[value_field_idx] = value
+            layer.updateFeature(feature)
+        layer.commitChanges()
+
+
 
 
     @staticmethod
@@ -164,3 +179,19 @@ class DhpUtility:
                 target_layer.updateFeature(feature)
         target_layer.commitChanges()
         Logger().debug(("Transfer completed."))
+
+    @staticmethod
+    def convert_iterator_to_list(iterator):
+        """Converts QGIS-Iterator to list."""
+        # This is useful if we have to rewind iterators frequently for example in nested for-loops.
+        # We hereby forgo making a lot of feature requests.
+        iterator_list = []
+        for element in iterator:
+            iterator_list.append(element)
+        return iterator_list
+
+    @staticmethod
+    def get_value_from_field(layer, feature, field_name):
+        idx = layer.fields().indexFromName(field_name)
+        value = feature[idx]
+        return value
