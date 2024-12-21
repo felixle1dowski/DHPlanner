@@ -124,9 +124,43 @@ class DhpUtility:
         print(f"Values copied from '{source_field_name}' to '{target_field_name}'.")
 
     @staticmethod
-    def create_new_field(layer, new_field_name, type: QVariant):
-        layer.startEditing()
-        layer_provider = layer.dataProvider()
-        field = QgsField(new_field_name, type)
-        layer_provider.addAttributes([field])
-        layer.commitChanges()
+    def create_new_field(layer, new_field_name, q_Type: QVariant):
+        # Check if the field already exists
+        field_names = [field.name() for field in layer.fields()]
+
+        if new_field_name not in field_names:
+            layer.startEditing()
+            layer_provider = layer.dataProvider()
+            field = QgsField(new_field_name, q_Type)
+            layer_provider.addAttributes([field])
+            layer.commitChanges()
+            print(f"Field '{new_field_name}' created.")
+        else:
+            print(f"Field '{new_field_name}' already exists.")
+
+    @staticmethod
+    def transfer_values_by_matching_id(target_layer,
+                                       source_layer_features,
+                                       target_layer_features,
+                                       transferred_field_name,
+                                       matching_field_name):
+        """transferred_field_name and matching_field_name have to be the same for both layers."""
+        """ToDo: Make sure that this is valid."""
+        target_layer.startEditing()
+        target_layer_transferred_idx = target_layer.fields().indexFromName(transferred_field_name)
+        transferred_data = {}
+        for feature in source_layer_features:
+            value_to_match = feature[matching_field_name]
+            transferred_value = feature[transferred_field_name]
+            transferred_data[value_to_match] = transferred_value
+
+        Logger().debug((f"Transferred data: {transferred_data}"))
+
+        for feature in target_layer_features:
+            value_to_match = feature[matching_field_name]
+            if value_to_match in transferred_data:
+                value_to_transfer = transferred_data[value_to_match]
+                feature.setAttribute(target_layer_transferred_idx, value_to_transfer)
+                target_layer.updateFeature(feature)
+        target_layer.commitChanges()
+        Logger().debug(("Transfer completed."))
