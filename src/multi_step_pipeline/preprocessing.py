@@ -21,6 +21,12 @@ class Preprocessing:
     selected_roads_exploded = None
     buildings_centroids = None
     preprocessing_result = None
+    heating_demand_layer = None
+
+    # ToDo: Put this in config.
+    HEAT_DEMAND_COL_NAME = "waermebeda"
+    HEAT_DEMAND_N_BUILDINGS_COL_NAME = "anzahl_ein"
+    INDIVIDUAL_HEAT_DEMAND_COL_NAME = "individual_heat_demand"
 
     def __init__(self):
         pass
@@ -37,10 +43,13 @@ class Preprocessing:
         self.roads_layer = QgsProject.instance().mapLayersByName(Config().get_roads_layer_name())[0]
         self.__verify_layer(Config().get_buildings_layer_name())
         self.buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
+        self.__verify_layer(Config().get_heat_demands_layer_name())
+        self.heating_demand_layer = QgsProject.instance().mapLayersByName(Config().get_heat_demands_layer_name())[0]
 
         # ToDo: Is selection_layer necessary in the parameters?
         self.__select_features(self.roads_layer, self.selection_layer)
         self.__select_features(self.buildings_layer, self.selection_layer)
+        self.__select_features(self.heating_demand_layer, self.selection_layer)
 
         # ToDo: This is not good practice. I should not do this in place.
         # ToDo: I want to change this, so that I only work with temporary layers from the preprocessing stage onward.
@@ -53,6 +62,10 @@ class Preprocessing:
         DhpUtility.assign_unique_ids(self.buildings_centroids, "id")
         self.__add_building_type_attribute()
         Logger().info("Buildings have been preprocessed successfully.")
+        self.__add_heat_demands_to_building_centroids()
+        Logger().info("Building centroids have successfully been adjusted to display heat demands of buildings.")
+
+
         result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
         return result
 
@@ -187,3 +200,32 @@ class Preprocessing:
         for feature in layer.getFeatures():
             feature.setAttribute("Type", "building")
             layer.updateFeature(feature)
+
+    def __add_heat_demands_to_building_centroids(self):
+        building_centroids = self.buildings_centroids
+        building_centroids.startEditing()
+        DhpUtility.create_new_field(building_centroids, self.INDIVIDUAL_HEAT_DEMAND_COL_NAME, QVariant.String)
+        heat_demands = self.heating_demand_layer
+        selected_heat_demands_list = list(self.heating_demand_layer.selectedFeatures())
+        if not selected_heat_demands_list:
+            raise Exception(f"No features selected in {self.heating_demand_layer.name()}.")
+        spatial_index = QgsSpatialIndex(heat_demands)
+        building_centroids_features = building_centroids.getFeatures()
+        for building_centroid in building_centroids_features:
+            point_geom = building_centroid.geometry()
+            heat_demand_id = spatial_index.intersects(point_geom.boundingBox())
+            heat_demand_feature_iterator = heat_demands.getFeatures(heat_demand_id)
+            multiple_check = False
+            for heat_demand_feature in heat_demand_feature_iterator:
+                if heat_demand_feature.geometry().contains(point_geom) and not multiple_check:
+                    multiple_check = True
+                    heat_demand_combined = heat_demand_feature[f"{self.HEAT_DEMAND_COL_NAME}"]
+                    n_buildings = heat_demand_feature[f"{self.HEAT_DEMAND_N_BUILDINGS_COL_NAME}"]
+                    heat_demand_individual = str(float(heat_demand_combined) / float(n_buildings))
+                    DhpUtility.assign_value_to_field(building_centroids, self.INDIVIDUAL_HEAT_DEMAND_COL_NAME,
+                                                     building_centroid, heat_demand_individual)
+                    building_centroids.updateFeature(building_centroid)
+                elif heat_demand_feature.geometry().contains(point_geom) and multiple_check:
+                    building_centroid_id = building_centroid.id()
+                    raise Exception(f"Multiple heat demand geometries for building centroid with id {building_centroid_id} found.")
+        building_centroids.commitChanges()

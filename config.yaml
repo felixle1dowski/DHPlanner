@@ -2,6 +2,7 @@
   selection-layer-name: "selection"
   roads-layer-name: "roads"
   buildings-layer-name: "buildings"
+  heat-demands-layer-name: "heat_demands"
   # possible strategies:
     # street-following: pipes have to be installed under the streets.
     # greenfield: no rules for pipe installation.

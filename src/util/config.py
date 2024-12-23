@@ -11,7 +11,8 @@ import os
 class Config:
 
     REQUIRED_FIELDS = ["buildings-layer-name", "roads-layer-name",
-                       "selection-layer-name", "installation-strategy",
+                       "selection-layer-name", "heat-demands-layer-name",
+                       "installation-strategy",
                        "log-level", "method", "crs"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
@@ -86,6 +87,9 @@ class Config:
 
     def get_buildings_layer_name(self):
         return self.config.get("buildings-layer-name")
+
+    def get_heat_demands_layer_name(self):
+        return self.config.get("heat-demands-layer-name")
 
     def get_crs(self):
         return QgsCoordinateReferenceSystem('EPSG:4839')
