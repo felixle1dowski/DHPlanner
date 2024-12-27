@@ -56,7 +56,7 @@ class ClusteringFirstStage:
             renderer = self.create_unique_cluster_colors_renderer(clustering_results[self.CLUSTER_RESULTS_CLUSTER_COL_NAME].values,
                                                        output_layer.geometryType(),
                                                        self.CLUSTER_FIELD_NAME)
-            # self.visualize_clustering_results_by_repainting(output_layer, renderer)
+            self.visualize_clustering_results_by_repainting(output_layer, renderer)
             # self.plot_clusters(clusters, features, labels)
             # self.assign_clusters_to_building_centroids(clusters)
             # self.visualize_building_cluster_membership(labels)
@@ -148,8 +148,9 @@ class ClusteringFirstStage:
         output_layer_data = output_layer.dataProvider()
         output_layer_data.addAttributes(self.buildings_layer.fields())
         output_layer.updateFields()
-        selected_buildings_features = self.buildings_layer.getFeatures(self.selected_buildings_expression)
         DhpUtility.create_new_field(output_layer, self.CLUSTER_FIELD_NAME, QVariant.String)
+        output_layer.updateFields()
+        selected_buildings_features = self.buildings_layer.getFeatures(self.selected_buildings_expression)
         for building in selected_buildings_features:
             new_feature = QgsFeature()
             new_feature.setGeometry(building.geometry())
@@ -157,7 +158,7 @@ class ClusteringFirstStage:
             output_layer_data.addFeature(new_feature)
 
         for index, row in cluster_results.iterrows():
-            value = row.iloc[self.CLUSTER_RESULTS_CLUSTER_COL_N]
+            value = str(row.iloc[self.CLUSTER_RESULTS_CLUSTER_COL_N])
             DhpUtility.assign_value_to_field_by_id(output_layer, self.SHARED_ID_FIELD_NAME, index, self.CLUSTER_FIELD_NAME, value)
 
         QgsProject.instance().addMapLayer(output_layer)

@@ -51,15 +51,12 @@ class DhpUtility:
         layer.startEditing()
         field_idx = layer.fields().indexFromName(id_field_name)
         value_field_idx = layer.fields().indexFromName(value_field_name)
-        expression = f"'{id_field_name}' = '{id_value}'"
+        expression = f"{id_field_name} = '{id_value}'"
         request = QgsFeatureRequest().setFilterExpression(expression)
         for feature in layer.getFeatures(request):
             feature[value_field_idx] = value
             layer.updateFeature(feature)
         layer.commitChanges()
-
-
-
 
     @staticmethod
     def add_field_and_copy_values(layer, new_field_name, existing_field_name):
