@@ -96,3 +96,8 @@ class Config:
 
     def get_debug_folder_path(self):
         return self.DEBUG_FOLDER
+
+    def get_load_factor(self, building_type):
+        conversion_type = self.config["building-type-conversion"].get(building_type, building_type)
+        load_profile = self.config["load-profile-factors"].get(conversion_type, None)
+        return load_profile
