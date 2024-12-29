@@ -27,6 +27,11 @@ class Preprocessing:
     HEAT_DEMAND_COL_NAME = "waermebeda"
     HEAT_DEMAND_N_BUILDINGS_COL_NAME = "anzahl_ein"
     INDIVIDUAL_HEAT_DEMAND_COL_NAME = "individual_heat_demand"
+    JANUARY_CONSUMPTION_COL_NAME = "jan_demand"
+    PEAK_DEMAND_COL_NAME = "peak_demand"
+    COUNT_HOURS_IN_PEAK_MONTH = 31 * 24 # for January
+    PEAK_MONTH_HEATING_DEMAND_PCT = 0.16 # for January - Jebamalai et al. (2019)
+    MONTHS_IN_YEAR = 12
 
     def __init__(self):
         pass
@@ -64,7 +69,8 @@ class Preprocessing:
         Logger().info("Buildings have been preprocessed successfully.")
         self.__add_heat_demands_to_building_centroids()
         Logger().info("Building centroids have successfully been adjusted to display heat demands of buildings.")
-
+        self.__add_peak_demands_to_building_centroids()
+        Logger().info("Peak demands have been calculated successfully and added to the buildings centroids.")
 
         result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
         return result
@@ -229,3 +235,35 @@ class Preprocessing:
                     building_centroid_id = building_centroid.id()
                     raise Exception(f"Multiple heat demand geometries for building centroid with id {building_centroid_id} found.")
         building_centroids.commitChanges()
+
+    def __add_peak_demands_to_building_centroids(self):
+        """
+            From: Rosa, et al. (2012)
+        """
+        building_centroids = self.buildings_centroids
+        DhpUtility.create_new_field(building_centroids, self.PEAK_DEMAND_COL_NAME, QVariant.String)
+        DhpUtility.create_new_field(building_centroids, self.JANUARY_CONSUMPTION_COL_NAME, QVariant.String)
+        building_centroids.startEditing()
+        centroid_features = building_centroids.getFeatures()
+
+        for centroid_feature in centroid_features:
+            heat_demand = centroid_feature[f"{self.INDIVIDUAL_HEAT_DEMAND_COL_NAME}"]
+
+            # unit: Kwh/month
+            peak_month_demand = float(heat_demand) * self.PEAK_MONTH_HEATING_DEMAND_PCT
+            DhpUtility.assign_value_to_field(building_centroids, self.JANUARY_CONSUMPTION_COL_NAME, centroid_feature, peak_month_demand)
+
+            building_type = DhpUtility.get_value_from_field(building_centroids, centroid_feature, "type")
+
+            # unit: Kwh/hour
+            load_factor = Config().get_load_factor(building_type)
+
+            peak_demand = self.__q_peak_calculation(peak_month_demand, self.COUNT_HOURS_IN_PEAK_MONTH, load_factor)
+            DhpUtility.assign_value_to_field(building_centroids, self.PEAK_DEMAND_COL_NAME, centroid_feature, peak_demand)
+
+
+
+    @staticmethod
+    def __q_peak_calculation(epeakm, t, lf):
+        result = epeakm / (t * lf)
+        return result

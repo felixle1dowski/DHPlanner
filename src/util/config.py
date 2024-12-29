@@ -98,6 +98,9 @@ class Config:
         return self.DEBUG_FOLDER
 
     def get_load_factor(self, building_type):
-        conversion_type = self.config["building-type-conversion"].get(building_type, building_type)
+        building_type_string = str(building_type)
+        if building_type_string == "NULL":
+            building_type_string = "NULL_replacement"
+        conversion_type = self.config["building-type-conversion"].get(building_type_string, building_type_string)
         load_profile = self.config["load-profile-factors"].get(conversion_type, None)
         return load_profile

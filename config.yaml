@@ -35,7 +35,7 @@
     excluded: -1
 
   building-type-conversion:
-    NULL: "residential"
+    NULL_replacement: "residential"
     apartments: "multi-family-residential-buildings"
     house: "residential"
     detached: "residential"
