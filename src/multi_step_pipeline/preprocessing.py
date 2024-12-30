@@ -33,6 +33,8 @@ class Preprocessing:
     PEAK_MONTH_HEATING_DEMAND_PCT = 0.16 # for January - Jebamalai et al. (2019)
     MONTHS_IN_YEAR = 12
 
+    RESTRICT_ROAD_TYPES = True
+
     def __init__(self):
         pass
 
@@ -135,9 +137,10 @@ class Preprocessing:
 
     # ToDo: can we generalize this? Not only for roads, but for lines in general?
     def __explode_road_lines(self):
-        """Explodes the road lines. Two purposes:
+        """Explodes the road lines. Purposes:
         1) Make MultiLine Layer to Line Layer.
-        2) Reduce complexity of vectors."""
+        2) Optionally filter out undesired road types.
+        3) Reduce complexity of vectors."""
         if not self.roads_layer.isValid():
             raise Exception(f"Target layer {self.roads_layer.name()} is invalid.")
         selected_features = self.roads_layer.selectedFeatures()
@@ -152,12 +155,22 @@ class Preprocessing:
         # We're copying the fields from the target layer to the selected layer.
         selected_roads_data_provider.addAttributes(self.roads_layer.fields())
         selected_roads.updateFields()
-        selected_roads_data_provider.addFeatures(selected_features)
+
+        # If we want to restrict the road types that are to be used in order
+        # to later lay the pipe network, we filter non-desired ones out now.
+        if self.RESTRICT_ROAD_TYPES:
+            restricted_types = Config().get_excluded_road_fclasses()
+            for feature in selected_features:
+                if feature['fclass'] not in restricted_types:
+                    selected_roads_data_provider.addFeature(feature)
+        else:
+            selected_roads_data_provider.addFeatures(selected_features)
         params = {
             'INPUT': selected_roads,
             'OUTPUT': 'TEMPORARY_OUTPUT'
         }
         result = processing.run("native:explodelines", params)
+
         self.selected_roads_exploded = result['OUTPUT']
         QgsProject.instance().addMapLayer(self.selected_roads_exploded)
         Logger().info("Selected MultiLineStrings exploded successfully.")

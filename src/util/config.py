@@ -104,3 +104,9 @@ class Config:
         conversion_type = self.config["building-type-conversion"].get(building_type_string, building_type_string)
         load_profile = self.config["load-profile-factors"].get(conversion_type, None)
         return load_profile
+
+    def get_excluded_road_fclasses(self):
+        result = []
+        for entry in self.config["excluded-road-fclasses"]:
+            result.append(entry)
+        return result

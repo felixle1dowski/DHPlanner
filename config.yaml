@@ -18,6 +18,10 @@
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
 
+  excluded-road-fclasses:
+      - residential
+      - motorway
+
   load-profile-factors:
     shopping-mall: 0.36
     residential: 0.4
