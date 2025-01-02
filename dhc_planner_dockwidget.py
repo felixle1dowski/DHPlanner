@@ -26,11 +26,15 @@ import os
 
 from qgis.PyQt import QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal
-from qgis.core import Qgis
+from qgis.core import Qgis, QgsProject
 from qgis.core import QgsMessageLog
+from PyQt5.QtWidgets import QMessageBox
+
+from .src.util.user_parameters_builder import UserParametersBuilder
 from .src.util.config import Config
 from .src.util.logger import Logger
 from .src.dhc_creation_pipeline_factory import DHCCreationPipelineFactory
+from .src.util.user_parameters import UserParameters
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'dhc_planner_dockwidget_base.ui'))
@@ -38,6 +42,11 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 
 
 class DHCPlannerDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
+
+    available_layers = {}
+    selected_selection_layer = "Pick a selection layer"
+    user_parameters_builder : UserParametersBuilder
+    ready_to_start : bool
 
     closingPlugin = pyqtSignal()
 
@@ -49,18 +58,88 @@ class DHCPlannerDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # self.<objectname>, and you can use autoconnect slots - see
         # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
+        self.ready_to_start = False
+        self.availableLayers = None
+        self.user_parameters_builder = UserParametersBuilder()
         self.setupUi(self)
+
+        self.set_up_layer_select_combo_box(self.selection_layer_picker)
+        self.set_up_layer_select_combo_box(self.roads_layer_picker)
+        self.set_up_layer_select_combo_box(self.buildings_layer_picker)
 
         self.start_calculation_button.clicked.connect(self.start_calculation)
 
+        # Don't forget to construct the dataclass here!
+        # user_parameters = UserParameters(...)
+
+    def set_up_layer_select_combo_box(self, combo_box):
+        combo_box.currentIndexChanged.connect(self.layer_selected)
+        QgsProject.instance().layersAdded.connect(lambda: self.update_layer_list(combo_box))
+        QgsProject.instance().layersRemoved.connect(lambda: self.update_layer_list(combo_box))
+        QgsProject.instance().layerTreeRoot().nameChanged.connect(lambda: self.update_layer_list(combo_box))
+        self.update_layer_list(combo_box)
+
+    def update_layer_list(self, combo_box):
+        combo_box.clear()
+        layers = QgsProject.instance().mapLayers().values()
+        self.availableLayers = {layer.name(): layer for layer in layers}
+        combo_box.addItems(self.availableLayers.keys())
 
     def start_calculation(self):
         config = Config()
         logger = Logger()
-        QgsMessageLog.logMessage("Starting...", level=Qgis.Info)
-        logger.info("Starting...")
-        pipeline = DHCCreationPipelineFactory().create_pipeline()
-        pipeline.start()
+        try:
+            self.collect_user_parameters()
+            if self.ready_to_start:
+                QgsMessageLog.logMessage("Starting...", level=Qgis.Info)
+                logger.info("Starting...")
+                # pipeline = DHCCreationPipelineFactory().create_pipeline()
+                # pipeline.start()
+        except Exception as e:
+            Logger().error(f"Unexpected error: {e}")
+
+    def collect_user_parameters(self):
+        # first the necessary layers:
+        selection_layer_name = self.selection_layer_picker.currentText()
+        selection_layer = QgsProject.instance().mapLayersByName(selection_layer_name)
+        selection_layer_return = self.user_parameters_builder.set_selection_layer(selection_layer)
+        if isinstance(selection_layer_return, str):
+            self.show_error_alert(selection_layer_return)
+            self.ready_to_start = False
+            return
+        roads_layer_name = self.roads_layer_picker.currentText()
+        roads_layer = QgsProject.instance().mapLayersByName(roads_layer_name)
+        roads_layer_return = self.user_parameters_builder.set_road_layer(roads_layer)
+        if isinstance(roads_layer, str):
+            self.show_error_alert(roads_layer_return)
+            self.ready_to_start = False
+            return
+        building_layer_name = self.buildings_layer_picker.currentText()
+        building_layer = QgsProject.instance().mapLayersByName(building_layer_name)
+        building_layer_return = self.user_parameters_builder.set_building_layer(building_layer)
+        if isinstance(building_layer, str):
+            self.show_error_alert(building_layer_return)
+            self.ready_to_start = False
+            return
+        # now the heating source parameters
+        # ...
+        self.ready_to_start = True
+
+    def show_error_alert(self, alert_string):
+        alert = QMessageBox()
+        alert.setText(alert_string)
+        alert.setIcon(QMessageBox.Critical)
+        alert.setWindowTitle("Error")
+        alert.setStandardButtons(QMessageBox.Ok)
+        alert.exec_()
+
+    def layer_selected(self, index):
+        if index < 0:
+            return
+        selected_layer_name = self.selection_layer_picker.currentText()
+        selected_layer = self.available_layers.get(selected_layer_name)
+        if selected_layer:
+            self.selected_selection_layer = selected_layer
 
     def closeEvent(self, event):
         self.closingPlugin.emit()
