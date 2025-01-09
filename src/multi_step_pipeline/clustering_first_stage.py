@@ -57,6 +57,7 @@ class ClusteringFirstStage:
                                                        output_layer.geometryType(),
                                                        self.CLUSTER_FIELD_NAME)
             self.visualize_clustering_results_by_repainting(output_layer, renderer)
+            results = self.prepare_return(clustering_results)
             # self.plot_clusters(clusters, features, labels)
             # self.assign_clusters_to_building_centroids(clusters)
             # self.visualize_building_cluster_membership(labels)
@@ -284,3 +285,10 @@ class ClusteringFirstStage:
         osm_list = ",".join(f"'{osm_id}'" for osm_id in osm_ids)
         expression = f"{self.SHARED_ID_FIELD_NAME} IN ({osm_list})"
         return expression
+
+    def prepare_return(self, cluster_df):
+        return_dict = defaultdict(list)
+        for building_id, cluster_id in cluster_df.itertuples():
+            return_dict[cluster_id].append(building_id)
+        Logger().debug(return_dict)
+        return return_dict

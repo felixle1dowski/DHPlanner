@@ -110,3 +110,9 @@ class Config:
         for entry in self.config["excluded-road-fclasses"]:
             result.append(entry)
         return result
+
+    def get_heat_capacity(self):
+        return self.config.get("heat-capacity")
+
+    def get_minimum_heat_capacity_exhaustion(self):
+        return self.config.get("minimum-heat-capacity-exhaustion")

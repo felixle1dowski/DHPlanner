@@ -188,6 +188,10 @@ class DhpUtility:
         return iterator_list
 
     @staticmethod
+    def get_features_from_id_field(layer, id_field_name, ids):
+        pass
+
+    @staticmethod
     def get_value_from_field(layer, feature, field_name):
         idx = layer.fields().indexFromName(field_name)
         value = feature[idx]

@@ -18,6 +18,12 @@
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
 
+  heat-capacity: "1500"
+  # in kW.
+
+  minimum-heat-capacity-exhaustion: 40
+  # in percent.
+
   excluded-road-fclasses:
       - residential
       - motorway
