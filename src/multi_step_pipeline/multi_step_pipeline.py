@@ -1,5 +1,7 @@
 from ..dhc_creation_pipeline import DHCCreationPipeline
 from ..util.logger import Logger
+from ..util.logger import Config
+from qgis.core import (QgsProject)
 import time
 
 
@@ -10,10 +12,12 @@ class MultiStepPipeline(DHCCreationPipeline):
     mst_creator = None
     mst_visualizer = None
     clustering_first_stage = None
+    clustering_second_stage = None
 
-    def __init__(self, preprocessor, clustering_first_stage, graph_creator, mst_creator, mst_visualizer):
+    def __init__(self, preprocessor, clustering_first_stage, clustering_second_stage, graph_creator, mst_creator, mst_visualizer):
         self.preprocessing = preprocessor
         self.clustering_first_stage = clustering_first_stage
+        self.clustering_second_stage = clustering_second_stage
         self.graph_creator = graph_creator
         self.mst_creator = mst_creator
         self.mst_visualizer = mst_visualizer
@@ -22,11 +26,19 @@ class MultiStepPipeline(DHCCreationPipeline):
         Logger().info("Starting Preprocessing.")
         preprocessing_result = self.timed_wrapper(self.preprocessing.start)
         Logger().info("Finished Preprocessing.")
-        Logger().info("Starting Clustering.")
+        Logger().info("Starting First Stage Clustering.")
         self.clustering_first_stage.set_preprocessing_result(preprocessing_result.building_centroids)
-        self.timed_wrapper(self.clustering_first_stage.start)
-        Logger().info("Finished Clustering.")
-        Logger().info("Starting Graph Creation.")
+        clustering_first_stage_result = self.timed_wrapper(self.clustering_first_stage.start)
+        Logger().info("Finished First Stage Clustering.")
+        Logger().info("Starting Second Stage Clustering.")
+        # ToDo: This is dirty. Change this by creating a shared resources class that holds ressources like this.
+        buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
+        self.clustering_second_stage.set_first_stage_result(clustering_first_stage_result,
+                                                            buildings_layer,
+                                                            preprocessing_result.building_centroids)
+        self.timed_wrapper(self.clustering_second_stage.start)
+        Logger().info("Finished Second Stage Clustering.")
+
         # self.graph_creator.set_preprocessing_result(preprocessing_result)
         # graph_creation_result = self.timed_wrapper(self.graph_creator.start)
         # Logger().info("Finished Graph Creation.")

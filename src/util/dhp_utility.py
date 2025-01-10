@@ -1,5 +1,5 @@
 from PyQt5.QtCore import QVariant
-from qgis.core import QgsField, QgsFeatureRequest
+from qgis.core import QgsField, QgsFeatureRequest, QgsExpression
 from .logger import Logger
 
 class DhpUtility:
@@ -188,8 +188,14 @@ class DhpUtility:
         return iterator_list
 
     @staticmethod
-    def get_features_from_id_field(layer, id_field_name, ids):
-        pass
+    def get_features_by_id_field(layer, id_field_name, ids):
+        # ToDo: Get all features from specifying request with custom id field.
+        id_string = str.join(", ", ids)
+        expression = QgsExpression(f'"{id_field_name}" IN ({id_string})')
+        request = QgsFeatureRequest(expression)
+        features = layer.getFeatures(request)
+        return features
+
 
     @staticmethod
     def get_value_from_field(layer, feature, field_name):

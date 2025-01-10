@@ -31,7 +31,7 @@ class ClusteringFirstStage:
     CLUSTER_RESULTS_ID_COL_NAME = 'id'
     CLUSTER_RESULTS_CLUSTER_COL_NAME = 'cluster'
     CLUSTER_RESULTS_CLUSTER_COL_N = 0
-    EPS = 0.01
+    EPS = 30
     MIN_SAMPLES = 2
 
     def __init__(self):
@@ -57,10 +57,11 @@ class ClusteringFirstStage:
                                                        output_layer.geometryType(),
                                                        self.CLUSTER_FIELD_NAME)
             self.visualize_clustering_results_by_repainting(output_layer, renderer)
-            results = self.prepare_return(clustering_results)
+            result = self.prepare_return(clustering_results)
             # self.plot_clusters(clusters, features, labels)
             # self.assign_clusters_to_building_centroids(clusters)
             # self.visualize_building_cluster_membership(labels)
+            return result
         else:
             raise Exception("Not ready to start")
 
@@ -289,6 +290,8 @@ class ClusteringFirstStage:
     def prepare_return(self, cluster_df):
         return_dict = defaultdict(list)
         for building_id, cluster_id in cluster_df.itertuples():
-            return_dict[cluster_id].append(building_id)
+            # filtering out the noise.
+            if cluster_id != "-1":
+                return_dict[cluster_id].append(building_id)
         Logger().debug(return_dict)
         return return_dict
