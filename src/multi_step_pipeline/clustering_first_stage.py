@@ -8,9 +8,12 @@ from qgis.core import (QgsVectorLayer, QgsField, QgsProject,
                        QgsFeatureRequest)
 from PyQt5.QtCore import QVariant
 from PyQt5.QtGui import QColor
+
+from ..util import function_timer
 from ..util.logger import Logger
 from ..util.config import Config
 from ..util.dhp_utility import DhpUtility
+from ..util.function_timer import FunctionTimer
 import numpy as np
 import pandas as pd
 import random
@@ -18,6 +21,9 @@ import matplotlib.pyplot as plt
 
 
 class ClusteringFirstStage:
+
+    function_timer = FunctionTimer()
+
     building_centroids : QgsVectorLayer = None
     buildings_layer : QgsVectorLayer = None
     selected_buildings_expression : str = None
@@ -65,6 +71,7 @@ class ClusteringFirstStage:
         else:
             raise Exception("Not ready to start")
 
+    @function_timer.timed_function
     def prepare_data_for_clustering(self):
         prepared_data = []
         selected_centroids = self.building_centroids.getFeatures()
@@ -81,6 +88,7 @@ class ClusteringFirstStage:
                          f"id: {centroid.id()}, x: {x}, y: {y}")
         return prepared_data
 
+    @function_timer.timed_function
     def calculate_distances_between_points(self):
         """Calculates nearest points for all elements present in filtered buildings layer."""
         # we need two iterators.
@@ -110,6 +118,7 @@ class ClusteringFirstStage:
                                                       "osm_id")
         return distances_between_buildings, features_list_length, osm_ids
 
+    @function_timer.timed_function
     def construct_distance_matrix(self, distances_between_geometries, amount_of_features):
         condensed_distances = [i["distance"] for i in distances_between_geometries]
         condensed_labels = [i["feature_i_osm_id"] for i in distances_between_geometries]
@@ -126,11 +135,13 @@ class ClusteringFirstStage:
             raise Exception("Distance matrix is not symmetric. Error in distance matrix calculation.")
         return distance_matrix
 
+    @function_timer.timed_function
     def construct_distance_matrix_df(self, distance_matrix, label_names):
         distance_df = pd.DataFrame(distance_matrix, index=label_names, columns=label_names)
         Logger().debug(distance_df)
         return distance_df
 
+    @function_timer.timed_function
     def do_clustering_with_custom_metric(self, distance_df):
         db = DBSCAN(eps=self.EPS, min_samples=self.MIN_SAMPLES, metric="precomputed")
         clusters = db.fit_predict(distance_df.values)
@@ -140,6 +151,7 @@ class ClusteringFirstStage:
         Logger().debug(cluster_results)
         return cluster_results
 
+    @function_timer.timed_function
     def prepare_output_layer_for_visualization(self, cluster_results):
         """Prepares output layer for visualization and further calculation.
                 - creates output layer
@@ -166,11 +178,13 @@ class ClusteringFirstStage:
         QgsProject.instance().addMapLayer(output_layer)
         return output_layer
 
+    @function_timer.timed_function
     def visualize_clustering_results_by_repainting(self, output_layer, renderer):
         output_layer.setRenderer(renderer)
         output_layer.triggerRepaint()
 
     @staticmethod
+    @function_timer.timed_function
     def log_distances_between_geometries(feature1, feature2, distance, layer, id_field_name):
         """To be used if a layer uses a custom id."""
         # we only do this when the log level is adequately low.
@@ -180,7 +194,7 @@ class ClusteringFirstStage:
             feature2_id = str(feature2[id_field_name_idx])
             Logger().debug(f"distance between Feature: {feature1_id} and Feature: {feature2_id}: {distance}")
 
-
+    @function_timer.timed_function
     def do_clustering(self, data):
         ids = [point['id'] for point in data]
         features = np.array([[point['x'], point['y']] for point in data])
@@ -193,6 +207,7 @@ class ClusteringFirstStage:
             clusters[label].append(ids[idx])
         return clusters, features, labels
 
+    @function_timer.timed_function
     def plot_clusters(self, clusters, features, labels):
         if not self.plot_buildings:
             return
@@ -217,6 +232,7 @@ class ClusteringFirstStage:
         file_path = f"{Config().get_debug_folder_path()}clusters{time.asctime()}.png"
         plt.savefig(file_path)
 
+    @function_timer.timed_function
     def print_results(self, clusters):
         for cluster_id, cluster_ids in clusters.items():
             if cluster_id != 1:
@@ -224,6 +240,7 @@ class ClusteringFirstStage:
             else:
                 Logger().debug(f"Noise: {cluster_ids}")
 
+    @function_timer.timed_function
     def assign_clusters_to_building_centroids(self, clusters):
         DhpUtility.create_new_field(self.building_centroids, self.CLUSTER_FIELD_NAME, QVariant.String)
         for cluster_id, cluster_ids in clusters.items():
@@ -234,6 +251,7 @@ class ClusteringFirstStage:
                                                  feature,
                                                  str(cluster_id))
 
+    @function_timer.timed_function
     def visualize_building_cluster_membership(self, labels):
         buildings_layer = self.buildings_layer
         cluster_field = self.CLUSTER_FIELD_NAME
@@ -265,6 +283,7 @@ class ClusteringFirstStage:
         output_layer.triggerRepaint()
         QgsProject.instance().addMapLayer(output_layer)
 
+    @function_timer.timed_function
     def create_unique_cluster_colors_renderer(self, labels, geometry_type, cluster_field):
         unique_labels = set(labels)
         categories = []
@@ -278,6 +297,7 @@ class ClusteringFirstStage:
         renderer = QgsCategorizedSymbolRenderer(cluster_field, categories)
         return renderer
 
+    @function_timer.timed_function
     def prepare_filter_expression(self):
         """Used to only select buildings that have been processed and selected via preprocessing.
             These are available via the building_centroids."""
@@ -287,6 +307,7 @@ class ClusteringFirstStage:
         expression = f"{self.SHARED_ID_FIELD_NAME} IN ({osm_list})"
         return expression
 
+    @function_timer.timed_function
     def prepare_return(self, cluster_df):
         return_dict = defaultdict(list)
         for building_id, cluster_id in cluster_df.itertuples():
