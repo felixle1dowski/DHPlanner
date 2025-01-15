@@ -7,6 +7,8 @@ import sys
 from qgis.core import QgsVectorLayer
 from sklearn.cluster import BisectingKMeans
 
+from .I_clustering_second_stage_feasible_solution_creator import IClusteringSecondStageFeasibleSolutionCreator
+
 # ToDo: Put all of this into class that handles dependencies!!
 required_version = (1,1)
 
@@ -30,16 +32,21 @@ class ClusteringSecondStage:
     # ToDo: Put in config.
     UNIQUE_ID_FIELD_NAME_CENTROIDS = "osm_id"
 
-    def set_first_stage_result(self, first_stage_cluster_dict, buildings_layer, building_centroids_layer):
+    def set_first_stage_result(self, first_stage_cluster_dict,
+                               buildings_layer,
+                               building_centroids_layer):
         self.first_stage_cluster_dict = first_stage_cluster_dict
         self.buildings_layer = buildings_layer
         self.building_centroids = building_centroids_layer
         self.ready_to_start = True
 
-    def start(self):
+    def start(self, feasible_solution_creator : IClusteringSecondStageFeasibleSolutionCreator):
         if self.ready_to_start:
             for cluster_id, cluster_members in self.first_stage_cluster_dict.items():
                 temporary_solution = self.generate_temporary_clustering_solution(cluster_id, cluster_members)
+                feasible_solution_creator.make_solution_feasible(temporary_solution,
+                                                                 cluster_center_dict,
+                                                                 self.building_centroids)
 
     def generate_temporary_clustering_solution(self, cluster_id, cluster_members):
         member_features_iterator = DhpUtility.get_features_by_id_field(self.building_centroids,
@@ -50,9 +57,11 @@ class ClusteringSecondStage:
         weights = self.collect_centroid_weights(member_features_list)
         number_of_clusters = self.calculate_number_of_necessary_clusters(weights)
         kmeans_result = self.do_kmeans_clustering(xys, weights, number_of_clusters)
-        self.make_temporary_solution_feasible()
+        member_features_list_ids = [id_value[self.UNIQUE_ID_FIELD_NAME_CENTROIDS] for id_value in member_features_list]
+        cluster_dict = self.make_labels_into_cluster_dict(member_features_list_ids, kmeans_result.labels_)
+
         # ToDo: Change this after making the solution feasible.
-        return kmeans_result
+        return cluster_dict
 
     def calculate_number_of_necessary_clusters(self, weight_list):
         # ToDo: assert weight_list is list of floats.
@@ -100,6 +109,17 @@ class ClusteringSecondStage:
             weight = DhpUtility.get_value_from_field(self.building_centroids, feature, self.PEAK_DEMAND_FIELD_NAME)
             centroid_weights.append(weight)
         return centroid_weights
+
+    def make_labels_into_cluster_dict(self, member_list, labels):
+        cluster_dict = {}
+        if len(member_list) != len(labels):
+            raise Exception("member list and labels must have same lenght")
+        for unique_label in set(labels):
+            cluster_dict[unique_label] = []
+        for i in range(len(member_list)):
+            cluster_dict[labels[i]].append(member_list[i])
+        Logger().debug(f"Cluster dict has been created.\n {cluster_dict}")
+        return cluster_dict
 
     def make_temporary_solution_feasible(self):
         pass

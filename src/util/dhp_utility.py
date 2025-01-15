@@ -196,9 +196,50 @@ class DhpUtility:
         features = layer.getFeatures(request)
         return features
 
+    @staticmethod
+    def get_feature_by_id_field(layer, id_field_name, id):
+        feature = DhpUtility.get_features_by_id_field(layer, id_field_name, id)
+        feature_list = DhpUtility.convert_iterator_to_list(feature)
+        if len(feature_list) > 1:
+            raise Exception(f"Multiple features found for id {id}."
+                            f"Ids in id field may not be unique.")
+        return feature[0]
 
     @staticmethod
     def get_value_from_field(layer, feature, field_name):
         idx = layer.fields().indexFromName(field_name)
         value = feature[idx]
         return value
+
+    @staticmethod
+    def get_value_from_feature_by_id_field(layer, id_field_name, id_to_find, field_name_to_look_up):
+        """Only usable for one id."""
+        look_up_field_idx = layer.fields().indexFromName(field_name_to_look_up)
+        expression = QgsExpression(f'"{id_field_name}" IN ({id_to_find})')
+        request = QgsFeatureRequest(expression)
+        feature = layer.getFeatures(request)
+        if len(feature) > 1:
+            raise Exception(f"More than one feature found for id '{id_field_name}'. Not permitted!")
+        value = feature[look_up_field_idx]
+        return value
+
+    @staticmethod
+    def flatten_list(list_of_lists):
+        result = []
+        for item in list_of_lists:
+            if isinstance(item, list):
+                result.extend(DhpUtility.flatten_list(item))  # Recursively flatten list
+            else:
+                result.append(item)
+        return result
+
+    @staticmethod
+    def get_xy_by_id_field(layer, id_field_name, id):
+        expression = QgsExpression(f'"{id_field_name}" IN ({id})')
+        request = QgsFeatureRequest(expression)
+        feature = layer.getFeatures(request)
+        if len(feature) > 1:
+            raise Exception(f"More than one feature found for id '{id_field_name}'. Not permitted!")
+        feature_geom = feature.geometry()
+        feature_xy = (feature_geom.asPoint().x(), feature_geom.asPoint().y())
+        return feature_xy

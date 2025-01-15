@@ -18,8 +18,9 @@ class ClusteringDecoder():
             (key, index) for index, key in enumerate(chromosome)
         )
         cluster_capacities = self.init_cluster_capacities(permutation)
-        clusters = self.create_cluster_membership_table(permutation, cluster_capacities)
-        fitness = self.evaluate_solution(clusters, cluster_capacities)
+        cluster_members, cluster_centers, cluster_membership_table \
+            = self.create_cluster_membership_table(permutation, cluster_capacities)
+        fitness = self.evaluate_solution(cluster_membership_table, cluster_capacities)
         return fitness
 
     def create_cluster_membership_table(self, permutation: list, cluster_capacities: {int:float}) \
@@ -31,7 +32,8 @@ class ClusteringDecoder():
         cluster_membership_table_init = np.zeros(shape=(len(cluster_members), len(cluster_centers)), dtype=int)
         cluster_membership_table = np.ndarray(cluster_membership_table_init, dtype=int)
         for cluster_member in cluster_members:
-            distances_to_centers = self.instance.get_sorted_distances_to_multiple_points(cluster_member, cluster_centers)
+            distances_to_centers =\
+                self.instance.get_sorted_distances_to_multiple_points(cluster_member, cluster_centers)
             for cluster_center, distance in distances_to_centers:
                 if self.cluster_member_fits_into_cluster(cluster_capacities, cluster_center, cluster_member):
                     cluster_membership_table[cluster_member][cluster_center] = 1
@@ -53,12 +55,19 @@ class ClusteringDecoder():
         potential_remaining_capacity = remaining_capacity - self.instance.get_point_demand(potential_member)
         return potential_remaining_capacity >= 0
 
-    def evaluate_solution(self, clusters: np.ndarray, cluster_capacities: {int: float}) -> float:
+    def evaluate_solution(self,
+                          clusters: np.ndarray,
+                          cluster_capacities: {int: float},
+                          cluster_members: list,
+                          cluster_centers: list) -> float:
         constraint_part = self.evaluate_constraints(clusters, cluster_capacities)
-        distances_part = self.evaluate_distances(clusters)
+        distances_part = self.evaluate_distances(clusters, cluster_members, cluster_centers)
         return constraint_part + distances_part
 
-    def evaluate_constraints(self, clusters, cluster_capacities: {int: float}) -> float:
+    # ToDo: In case of FITTING clusters, this should never be false.
+    def evaluate_constraints(self,
+                             clusters,
+                             cluster_capacities: {int: float}) -> float:
         capacity_constraint_part = self.evaluate_capacity_constraint(cluster_capacities)
         return capacity_constraint_part
 
@@ -68,11 +77,15 @@ class ClusteringDecoder():
                 return self.CONSTRAINT_BROKEN_PENALTY
         return 0.0
 
-    def evaluate_distances(self, clusters: np.ndarray) -> float:
+    def evaluate_distances(self, clusters: np.ndarray,
+                           cluster_members: list,
+                           cluster_centers: list) -> float:
         rows, cols = np.where(clusters == 1)
         combinations = list(zip(rows, cols))
         distance_sum = 0
         for entry in combinations:
-            distance_sum += self.instance.get_distance(entry[0], entry[1])
+            member = cluster_members[entry[0]]
+            center = cluster_centers[entry[1]]
+            distance_sum += self.instance.get_distance(member, center)
         return distance_sum
 
