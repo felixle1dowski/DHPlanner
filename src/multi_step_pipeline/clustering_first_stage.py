@@ -153,6 +153,7 @@ class ClusteringFirstStage:
 
     @function_timer.timed_function
     def prepare_output_layer_for_visualization(self, cluster_results):
+        # ToDo: DON'T COPY EVERY BUILDING ATTRIBUTE!!! ONLY FOR SELECTED!!
         """Prepares output layer for visualization and further calculation.
                 - creates output layer
                 - adds cluster id field to output layer

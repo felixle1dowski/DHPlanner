@@ -17,11 +17,28 @@ class ClusteringDecoder():
         permutation = sorted(
             (key, index) for index, key in enumerate(chromosome)
         )
-        cluster_capacities = self.init_cluster_capacities(permutation)
+        # ToDo: Get the correct ids here!
+        all_indices = [index for key, index in permutation]
+        arranged_ids = self.instance.get_decoded_list_of_ids(all_indices)
+        cluster_capacities = self.init_cluster_capacities(arranged_ids)
         cluster_members, cluster_centers, cluster_membership_table \
-            = self.create_cluster_membership_table(permutation, cluster_capacities)
-        fitness = self.evaluate_solution(cluster_membership_table, cluster_capacities)
+            = self.create_cluster_membership_table(arranged_ids, cluster_capacities)
+        fitness = self.evaluate_solution(cluster_membership_table, cluster_capacities, cluster_members, cluster_centers)
         return fitness
+
+    def decode_single_use(self, chromosome: BaseChromosome):
+        permutation = sorted(
+            (key, index) for index, key in enumerate(chromosome)
+        )
+        # ToDo: Get the correct ids here!
+        all_indices = [index for key, index in permutation]
+        arranged_ids = self.instance.get_decoded_list_of_ids(all_indices)
+        cluster_capacities = self.init_cluster_capacities(arranged_ids)
+        cluster_members, cluster_centers, cluster_membership_table \
+            = self.create_cluster_membership_table(arranged_ids, cluster_capacities)
+        fitness = self.evaluate_solution(cluster_membership_table, cluster_capacities, cluster_members, cluster_centers)
+        translated_table = self.translate_cluster_membership_table(cluster_members, cluster_centers, cluster_membership_table)
+        return fitness, translated_table
 
     def create_cluster_membership_table(self, permutation: list, cluster_capacities: {int:float}) \
             -> (int, int, np.ndarray):
@@ -29,29 +46,31 @@ class ClusteringDecoder():
         Membership table will display 1 if cluster point is member of cluster, 0 otherwise."""
         cluster_members = permutation[self.num_clusters:]
         cluster_centers = permutation[:self.num_clusters]
-        cluster_membership_table_init = np.zeros(shape=(len(cluster_members), len(cluster_centers)), dtype=int)
-        cluster_membership_table = np.ndarray(cluster_membership_table_init, dtype=int)
+        cluster_membership_table = np.zeros((len(cluster_members), len(cluster_centers)))
         for cluster_member in cluster_members:
             distances_to_centers =\
                 self.instance.get_sorted_distances_to_multiple_points(cluster_member, cluster_centers)
             for cluster_center, distance in distances_to_centers:
                 if self.cluster_member_fits_into_cluster(cluster_capacities, cluster_center, cluster_member):
-                    cluster_membership_table[cluster_member][cluster_center] = 1
+                    cluster_member_idx = cluster_members.index(cluster_member)
+                    cluster_center_idx = cluster_centers.index(cluster_center)
+                    cluster_membership_table[cluster_member_idx][cluster_center_idx] = 1
                     cluster_capacities[cluster_center] -= self.instance.get_point_demand(cluster_member)
                     break
         return cluster_members, cluster_centers, cluster_membership_table
 
-    def init_cluster_capacities(self, permutation: list) -> {int: float}:
+    def init_cluster_capacities(self, permutation: list) -> {str: float}:
         return_dict = {}
         cluster_centers = permutation[:self.num_clusters]
         for cluster_center in cluster_centers:
-            return_dict[cluster_center] = self.instance.max_capacity
+            return_dict[cluster_center] = float(self.instance.max_capacity)
+        return return_dict
 
     def cluster_member_fits_into_cluster(self,
                                          remaining_capacities : {int: float},
                                          cluster : int,
-                                         potential_member : int) -> bool:
-        remaining_capacity = remaining_capacities.get(cluster)
+                                         potential_member : str) -> bool:
+        remaining_capacity = float(remaining_capacities.get(cluster))
         potential_remaining_capacity = remaining_capacity - self.instance.get_point_demand(potential_member)
         return potential_remaining_capacity >= 0
 
@@ -89,3 +108,14 @@ class ClusteringDecoder():
             distance_sum += self.instance.get_distance(member, center)
         return distance_sum
 
+    def translate_cluster_membership_table(self, cluster_members, cluster_centers, cluster_membership_table):
+        return_dict = {}
+        rows, cols = np.where(cluster_membership_table == 1)
+        combinations = list(zip(rows, cols))
+        for cluster_center in cluster_centers:
+            return_dict[cluster_center] = []
+        for entry in combinations:
+            member = cluster_members[entry[0]]
+            center = cluster_centers[entry[1]]
+            return_dict[center].append(member)
+        return return_dict
