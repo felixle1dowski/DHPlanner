@@ -197,13 +197,15 @@ class DhpUtility:
         return features
 
     @staticmethod
-    def get_feature_by_id_field(layer, id_field_name, id):
-        feature = DhpUtility.get_features_by_id_field(layer, id_field_name, id)
+    def get_feature_by_id_field(layer, id_field_name, id_):
+        expression = QgsExpression(f'"{id_field_name}" IN ({id_})')
+        request = QgsFeatureRequest(expression)
+        feature = layer.getFeatures(request)
         feature_list = DhpUtility.convert_iterator_to_list(feature)
         if len(feature_list) > 1:
             raise Exception(f"Multiple features found for id {id}."
                             f"Ids in id field may not be unique.")
-        return feature[0]
+        return feature_list[0]
 
     @staticmethod
     def get_value_from_field(layer, feature, field_name):
@@ -218,9 +220,10 @@ class DhpUtility:
         expression = QgsExpression(f'"{id_field_name}" IN ({id_to_find})')
         request = QgsFeatureRequest(expression)
         feature = layer.getFeatures(request)
-        if len(feature) > 1:
+        feature_list = DhpUtility.convert_iterator_to_list(feature)
+        if len(feature_list) > 1:
             raise Exception(f"More than one feature found for id '{id_field_name}'. Not permitted!")
-        value = feature[look_up_field_idx]
+        value = feature_list[0][look_up_field_idx]
         return value
 
     @staticmethod
@@ -238,8 +241,9 @@ class DhpUtility:
         expression = QgsExpression(f'"{id_field_name}" IN ({id})')
         request = QgsFeatureRequest(expression)
         feature = layer.getFeatures(request)
-        if len(feature) > 1:
+        feature_list = DhpUtility.convert_iterator_to_list(feature)
+        if len(feature_list) > 1:
             raise Exception(f"More than one feature found for id '{id_field_name}'. Not permitted!")
-        feature_geom = feature.geometry()
+        feature_geom = feature_list[0].geometry()
         feature_xy = (feature_geom.asPoint().x(), feature_geom.asPoint().y())
         return feature_xy

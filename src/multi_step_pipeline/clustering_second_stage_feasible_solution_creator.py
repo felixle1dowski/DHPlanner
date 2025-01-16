@@ -1,16 +1,25 @@
-from I_clustering_second_stage_feasible_solution_creator import IClusteringSecondStageFeasibleSolutionCreator
-from scipy.spatial.distance import cdist
+from .I_clustering_second_stage_feasible_solution_creator import IClusteringSecondStageFeasibleSolutionCreator
+from scipy.spatial.distance import euclidean
 from ..util.dhp_utility import DhpUtility
 from ..util.logger import Logger
 from ..util.config import Config
+from ..util.function_timer import FunctionTimer
+
 
 class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibleSolutionCreator):
+    function_timer = FunctionTimer()
+
+    # ToDo: Change all variable names containing member to member_id (if suitable)
 
     # ToDo: Put in Config
     UNIQUE_ID_FIELD = "osm_id"
 
     MEMBER_LIST_KEY = "member_list"
     CURRENT_CAPACITY_KEY = "current_capacity"
+    TOTAL_SUM_OF_DISTANCES_KEY = "total_sum_of_distances"
+    SUM_OF_DISTANCES_PER_CLUSTER_KEY = "sum_of_distances"
+    CLUSTER_CENTER_BUILDING_KEY = "cluster_center"
+    CLUSTERS_KEY = "clusters"
 
     DEMAND_FIELD = "peak_demand"
 
@@ -44,18 +53,18 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
             member_feature = DhpUtility.get_feature_by_id_field(info_layer, self.UNIQUE_ID_FIELD, member)
             member_geometry = member_feature.geometry()
             member_xy = (member_geometry.asPoint().x(), member_geometry.asPoint().y())
-            distances_ranking.append((member, cdist(member_xy, cluster_center_xy)))
-        sorted_by_distance = [id_ for id_ in sorted(distances_ranking,
-                                                    key=lambda x: x[1],
-                                                    reverse=True)]
+            distances_ranking.append((member, euclidean(member_xy, cluster_center_xy)))
+        sorted_by_distance = [id_ for id_, distance in sorted(distances_ranking,
+                                                              key=lambda x: x[1],
+                                                              reverse=True)]
         return sorted_by_distance
 
     def add_capacity_field_to_cluster_dict(self, cluster_dict, info_layer):
         dict_with_capacity = {}
         for (cluster_id, member_list) in cluster_dict.items():
             dict_with_capacity[cluster_id] = {
-                self.MEMBER_LIST_KEY : member_list,
-                self.CURRENT_CAPACITY_KEY : self.calculate_current_capacity(info_layer, member_list)
+                self.MEMBER_LIST_KEY: member_list,
+                self.CURRENT_CAPACITY_KEY: self.calculate_current_capacity(info_layer, member_list)
             }
         Logger().debug(f"capacity added to cluster_dict. Current dict:\n{dict_with_capacity}")
         return dict_with_capacity
@@ -70,6 +79,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
             capacity -= float(demand)
         return capacity
 
+    @function_timer.timed_function
     def swap_cluster_membership_until_solution_feasible(self, cluster_dict, cluster_center_dict, info_layer):
         # ToDo: Validate that dict has all the required fields!
         for (cluster_id, inner_dict) in cluster_dict.items():
@@ -81,12 +91,14 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                         self.create_distance_ranking_member_to_cluster_center(candidate,
                                                                               cluster_center_dict,
                                                                               info_layer))
-                    for cluster_center in cluster_centers_ranked:
-                        if cluster_center_dict[cluster_id][self.CURRENT_CAPACITY_KEY] > DhpUtility.get_value_from_feature_by_id_field(info_layer,
-                                                                                                                                      self.UNIQUE_ID_FIELD,
-                                                                                                                                      candidate,
-                                                                                                                                      self.DEMAND_FIELD):
-                            self.swap_cluster_membership(cluster_dict, candidate, cluster_id, cluster_center, info_layer)
+                    for cluster_center_id, distance in cluster_centers_ranked:
+                        if cluster_dict[cluster_center_id][self.CURRENT_CAPACITY_KEY] > float(
+                                DhpUtility.get_value_from_feature_by_id_field(info_layer,
+                                                                              self.UNIQUE_ID_FIELD,
+                                                                              candidate,
+                                                                              self.DEMAND_FIELD)):
+                            self.swap_cluster_membership(cluster_dict, candidate, cluster_id, cluster_center_id,
+                                                         info_layer)
                             break
                     if inner_dict[self.CURRENT_CAPACITY_KEY] >= 0:
                         break
@@ -94,10 +106,10 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
 
     def swap_cluster_membership(self, cluster_dict, member,
                                 from_cluster, to_cluster, info_layer):
-        member_demand = DhpUtility.get_value_from_feature_by_id_field(info_layer,
-                                                                      self.UNIQUE_ID_FIELD,
-                                                                      member,
-                                                                      self.DEMAND_FIELD)
+        member_demand = float(DhpUtility.get_value_from_feature_by_id_field(info_layer,
+                                                                            self.UNIQUE_ID_FIELD,
+                                                                            member,
+                                                                            self.DEMAND_FIELD))
         if member in cluster_dict[from_cluster][self.MEMBER_LIST_KEY]:
             cluster_dict[from_cluster][self.MEMBER_LIST_KEY].remove(member)
             cluster_dict[from_cluster][self.CURRENT_CAPACITY_KEY] += member_demand
@@ -114,9 +126,52 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                                                   self.UNIQUE_ID_FIELD,
                                                   member)
         for cluster_id, cluster_xy in cluster_center_dict.items():
-            distance = cdist(cluster_xy, member_xy)
+            distance = euclidean(cluster_xy, member_xy)
             ranking_list.append((cluster_id, distance))
         sorted_by_distance = [id_ for id_ in sorted(ranking_list,
                                                     key=lambda x: x[1],
                                                     reverse=False)]
         return sorted_by_distance
+
+    def add_cluster_center_to_cluster_dict(self, cluster_dict, cluster_center_dict, info_layer):
+        # ToDo: Wouldn't it make more sense to do this BEFORE applying the swap_cluster_membership?
+        for cluster_id, inner_dict in cluster_dict.items():
+            closest_building_id = -1
+            closest_distance = float('inf')
+            cluster_center_xy = cluster_center_dict[cluster_id]
+            for member in inner_dict[self.MEMBER_LIST_KEY]:
+                member_xy = DhpUtility.get_xy_by_id_field(info_layer,
+                                                          self.UNIQUE_ID_FIELD,
+                                                          member)
+                distance_to_cluster_center = euclidean(cluster_center_xy, member_xy)
+                if distance_to_cluster_center < closest_distance:
+                    closest_distance = distance_to_cluster_center
+                    closest_building_id = member
+            inner_dict[self.CLUSTER_CENTER_BUILDING_KEY] = closest_building_id
+
+
+    def add_sum_of_distances_field_per_cluster(self, cluster_dict, info_layer):
+        total_distance = 0.0
+        for cluster_id, inner_dict in cluster_dict.items():
+            cluster_center_id = inner_dict[self.CLUSTER_CENTER_BUILDING_KEY]
+            members = inner_dict[self.MEMBER_LIST_KEY]
+            cluster_center_xy = DhpUtility.get_xy_by_id_field(info_layer,
+                                                              self.UNIQUE_ID_FIELD,
+                                                              cluster_center_id)
+            for member in members:
+                member_xy = DhpUtility.get_xy_by_id_field(info_layer,
+                                                          self.UNIQUE_ID_FIELD,
+                                                          member)
+                total_distance += euclidean(cluster_center_xy, member_xy)
+            inner_dict[self.SUM_OF_DISTANCES_PER_CLUSTER_KEY] = total_distance
+        return cluster_dict
+
+    def add_total_sum_of_distances_field(self, cluster_dict):
+        total_sum_of_distances = 0.0
+        for cluster_id, inner_dict in cluster_dict.items():
+            total_sum_of_distances += inner_dict[self.SUM_OF_DISTANCES_PER_CLUSTER_KEY]
+        new_cluster_dict = {
+            self.TOTAL_SUM_OF_DISTANCES_KEY : total_sum_of_distances,
+            self.CLUSTERS_KEY : cluster_dict
+        }
+        return new_cluster_dict

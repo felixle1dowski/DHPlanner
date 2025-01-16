@@ -27,6 +27,7 @@ class ClusteringSecondStage:
     # ToDo: Validate that it has all the required fields!
     first_stage_cluster_dict : defaultdict = None
     ready_to_start = False
+    feasible_solution_creator : IClusteringSecondStageFeasibleSolutionCreator = None
 
     PEAK_DEMAND_FIELD_NAME = "peak_demand"
     # ToDo: Put in config.
@@ -34,19 +35,24 @@ class ClusteringSecondStage:
 
     def set_first_stage_result(self, first_stage_cluster_dict,
                                buildings_layer,
-                               building_centroids_layer):
+                               building_centroids_layer,
+                               feasible_solution_creator: IClusteringSecondStageFeasibleSolutionCreator,):
         self.first_stage_cluster_dict = first_stage_cluster_dict
         self.buildings_layer = buildings_layer
         self.building_centroids = building_centroids_layer
         self.ready_to_start = True
+        self.feasible_solution_creator = feasible_solution_creator
 
-    def start(self, feasible_solution_creator : IClusteringSecondStageFeasibleSolutionCreator):
+    def start(self):
         if self.ready_to_start:
             for cluster_id, cluster_members in self.first_stage_cluster_dict.items():
-                temporary_solution = self.generate_temporary_clustering_solution(cluster_id, cluster_members)
-                feasible_solution_creator.make_solution_feasible(temporary_solution,
+                temporary_solution, cluster_center_dict = self.generate_temporary_clustering_solution(cluster_id, cluster_members)
+                feasible_solution = self.feasible_solution_creator.make_solution_feasible(temporary_solution,
                                                                  cluster_center_dict,
                                                                  self.building_centroids)
+                Logger().debug(f"feasible solution has been created for cluster {cluster_id}\n"
+                               f"solution: {feasible_solution}")
+
 
     def generate_temporary_clustering_solution(self, cluster_id, cluster_members):
         member_features_iterator = DhpUtility.get_features_by_id_field(self.building_centroids,
@@ -57,11 +63,12 @@ class ClusteringSecondStage:
         weights = self.collect_centroid_weights(member_features_list)
         number_of_clusters = self.calculate_number_of_necessary_clusters(weights)
         kmeans_result = self.do_kmeans_clustering(xys, weights, number_of_clusters)
+        cluster_center_dict = self.generate_cluster_center_dict(kmeans_result)
         member_features_list_ids = [id_value[self.UNIQUE_ID_FIELD_NAME_CENTROIDS] for id_value in member_features_list]
         cluster_dict = self.make_labels_into_cluster_dict(member_features_list_ids, kmeans_result.labels_)
 
         # ToDo: Change this after making the solution feasible.
-        return cluster_dict
+        return cluster_dict, cluster_center_dict
 
     def calculate_number_of_necessary_clusters(self, weight_list):
         # ToDo: assert weight_list is list of floats.
@@ -121,8 +128,11 @@ class ClusteringSecondStage:
         Logger().debug(f"Cluster dict has been created.\n {cluster_dict}")
         return cluster_dict
 
-    def make_temporary_solution_feasible(self):
-        pass
-
-    def generate_capacitated_centered_clustering_solution(self, temporary_clustering_solution):
-        pass
+    def generate_cluster_center_dict(self, temporary_solution):
+        cluster_center_dict = {}
+        cluster_center_xys = temporary_solution.cluster_centers_
+        list_of_xy_tuples = list(map(tuple, cluster_center_xys))
+        for i in range(len(list_of_xy_tuples)):
+            cluster_center_dict[i] = list_of_xy_tuples[i]
+        Logger().debug(f"Cluster center dict has been created.\n {cluster_center_dict}")
+        return cluster_center_dict

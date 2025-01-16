@@ -8,6 +8,7 @@ from .multi_step_pipeline.graph_creator import GraphCreator
 from .multi_step_pipeline.mst_creator import MSTCreator
 from .multi_step_pipeline.mst_visualizer import MSTVisualizer
 from .multi_step_pipeline.multi_step_pipeline import MultiStepPipeline
+from .multi_step_pipeline.clustering_second_stage_feasible_solution_creator import ClusteringSecondStageFeasibleSolutionCreator
 
 
 class DHCCreationPipelineFactory:
@@ -24,12 +25,14 @@ class DHCCreationPipelineFactory:
         elif self.method == "multi-step":
             preprocessing = Preprocessing()
             clustering_first_stage = ClusteringFirstStage()
+            feasible_solution_creator = ClusteringSecondStageFeasibleSolutionCreator()
             clustering_second_stage = ClusteringSecondStage()
             graph_creator = GraphCreator()
             mst_creator = MSTCreator()
             mst_visualizer = MSTVisualizer()
             return MultiStepPipeline(preprocessing,
                                      clustering_first_stage,
+                                     feasible_solution_creator,
                                      clustering_second_stage,
                                      graph_creator,
                                      mst_creator,

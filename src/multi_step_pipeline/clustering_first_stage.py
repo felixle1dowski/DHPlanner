@@ -184,7 +184,6 @@ class ClusteringFirstStage:
         output_layer.triggerRepaint()
 
     @staticmethod
-    @function_timer.timed_function
     def log_distances_between_geometries(feature1, feature2, distance, layer, id_field_name):
         """To be used if a layer uses a custom id."""
         # we only do this when the log level is adequately low.

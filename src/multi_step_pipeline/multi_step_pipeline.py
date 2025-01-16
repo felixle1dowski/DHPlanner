@@ -13,10 +13,12 @@ class MultiStepPipeline(DHCCreationPipeline):
     mst_visualizer = None
     clustering_first_stage = None
     clustering_second_stage = None
+    feasible_solution_creator = None
 
-    def __init__(self, preprocessor, clustering_first_stage, clustering_second_stage, graph_creator, mst_creator, mst_visualizer):
+    def __init__(self, preprocessor, clustering_first_stage, feasible_solution_creator, clustering_second_stage, graph_creator, mst_creator, mst_visualizer):
         self.preprocessing = preprocessor
         self.clustering_first_stage = clustering_first_stage
+        self.feasible_solution_creator = feasible_solution_creator
         self.clustering_second_stage = clustering_second_stage
         self.graph_creator = graph_creator
         self.mst_creator = mst_creator
@@ -35,7 +37,8 @@ class MultiStepPipeline(DHCCreationPipeline):
         buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
         self.clustering_second_stage.set_first_stage_result(clustering_first_stage_result,
                                                             buildings_layer,
-                                                            preprocessing_result.building_centroids)
+                                                            preprocessing_result.building_centroids,
+                                                            self.feasible_solution_creator)
         self.timed_wrapper(self.clustering_second_stage.start)
         Logger().info("Finished Second Stage Clustering.")
 
