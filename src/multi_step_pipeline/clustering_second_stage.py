@@ -6,6 +6,7 @@ import subprocess
 import sys
 from qgis.core import QgsVectorLayer
 from sklearn.cluster import BisectingKMeans
+from scipy.spatial.distance import cdist
 
 from .I_clustering_second_stage_feasible_solution_creator import IClusteringSecondStageFeasibleSolutionCreator
 
@@ -21,6 +22,8 @@ from ..util.dhp_utility import DhpUtility
 
 class ClusteringSecondStage:
 
+    # ToDo: Change all dict methods to act in-place
+
     buildings_layer : QgsVectorLayer = None
     # ToDo: Validate that it has all the required fields!
     building_centroids : QgsVectorLayer = None
@@ -32,6 +35,11 @@ class ClusteringSecondStage:
     PEAK_DEMAND_FIELD_NAME = "peak_demand"
     # ToDo: Put in config.
     UNIQUE_ID_FIELD_NAME_CENTROIDS = "osm_id"
+
+    CLUSTERS_KEY = "clusters"
+    MEMBER_LIST_KEY = "member_list"
+    TOTAL_MEMBER_LIST_KEY = "total_member_list"
+    DISTANCE_MATRIX_KEY = "distance_matrix"
 
     def set_first_stage_result(self, first_stage_cluster_dict,
                                buildings_layer,
@@ -50,6 +58,9 @@ class ClusteringSecondStage:
                 feasible_solution = self.feasible_solution_creator.make_solution_feasible(temporary_solution,
                                                                  cluster_center_dict,
                                                                  self.building_centroids)
+                feasible_solution_with_all_members = self.add_total_member_list(feasible_solution)
+                feasible_solution_with_distance_matrix = self.add_distance_matrix(feasible_solution_with_all_members,
+                                                                                  self.building_centroids)
                 Logger().debug(f"feasible solution has been created for cluster {cluster_id}\n"
                                f"solution: {feasible_solution}")
 
@@ -136,3 +147,28 @@ class ClusteringSecondStage:
             cluster_center_dict[i] = list_of_xy_tuples[i]
         Logger().debug(f"Cluster center dict has been created.\n {cluster_center_dict}")
         return cluster_center_dict
+
+    def add_total_member_list(self, cluster_dict):
+        total_member_list = []
+        clusters = cluster_dict[self.CLUSTERS_KEY]
+        for cluster, inner_dict in clusters.items():
+            member_list = inner_dict[self.MEMBER_LIST_KEY]
+            total_member_list.extend(member_list)
+        cluster_dict[self.TOTAL_MEMBER_LIST_KEY] = total_member_list
+        Logger().debug(f"Total member list has been created.\n Current dict: {cluster_dict}")
+        return cluster_dict
+
+    def add_distance_matrix(self, cluster_dict, info_layer):
+        member_xy_list = []
+        member_list = cluster_dict[self.TOTAL_MEMBER_LIST_KEY]
+        for member in member_list:
+            member_xy = DhpUtility.get_xy_by_id_field(info_layer,
+                                                      self.UNIQUE_ID_FIELD_NAME_CENTROIDS,
+                                                      member)
+            member_xy_list.append(member_xy)
+        points_array = np.array(member_xy_list)
+        distance_matrix = cdist(points_array, points_array, 'euclidean')
+        cluster_dict[self.DISTANCE_MATRIX_KEY] = distance_matrix
+        Logger().debug(f"Distance matrix has been created.\n Current dict: {cluster_dict}")
+        return cluster_dict
+

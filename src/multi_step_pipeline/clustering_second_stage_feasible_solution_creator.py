@@ -15,6 +15,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
     UNIQUE_ID_FIELD = "osm_id"
 
     MEMBER_LIST_KEY = "member_list"
+    # ToDo: This has to be put into a config anyway, but sometimes QGIS struggles mightily with underscores...
     CURRENT_CAPACITY_KEY = "current_capacity"
     TOTAL_SUM_OF_DISTANCES_KEY = "total_sum_of_distances"
     SUM_OF_DISTANCES_PER_CLUSTER_KEY = "sum_of_distances"
@@ -34,7 +35,12 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
         feasible_solution = self.swap_cluster_membership_until_solution_feasible(dict_with_capacity,
                                                                                  cluster_center_dict,
                                                                                  info_layer)
-        return feasible_solution
+        solution_with_cluster_centers = self.add_cluster_center_to_cluster_dict(feasible_solution,
+                                                                                cluster_center_dict,
+                                                                                info_layer)
+        solution_with_distances = self.add_sum_of_distances_field_per_cluster(solution_with_cluster_centers, info_layer)
+        solution_with_total_distances = self.add_total_sum_of_distances_field(solution_with_distances)
+        return solution_with_total_distances
 
     def create_distance_ranking_dict(self, cluster_dict, cluster_center_dict, info_layer):
         distance_ranking_dict = {}
@@ -148,6 +154,8 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                     closest_distance = distance_to_cluster_center
                     closest_building_id = member
             inner_dict[self.CLUSTER_CENTER_BUILDING_KEY] = closest_building_id
+        Logger().debug(f"Cluster Centers added. Current dict: {cluster_dict}")
+        return cluster_dict
 
 
     def add_sum_of_distances_field_per_cluster(self, cluster_dict, info_layer):
@@ -164,6 +172,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                                                           member)
                 total_distance += euclidean(cluster_center_xy, member_xy)
             inner_dict[self.SUM_OF_DISTANCES_PER_CLUSTER_KEY] = total_distance
+        Logger().debug(f"Sum of distances per cluster added. Current Dictionary: {cluster_dict}")
         return cluster_dict
 
     def add_total_sum_of_distances_field(self, cluster_dict):
@@ -174,4 +183,5 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
             self.TOTAL_SUM_OF_DISTANCES_KEY : total_sum_of_distances,
             self.CLUSTERS_KEY : cluster_dict
         }
+        Logger().debug(f"Total sum of distances per cluster added. Current Dictionary: {new_cluster_dict}")
         return new_cluster_dict
