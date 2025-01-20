@@ -1,12 +1,19 @@
 import math
+import random
 from collections import defaultdict
 
 import numpy as np
 import subprocess
 import sys
-from qgis.core import QgsVectorLayer
+from qgis.core import (QgsVectorLayer, QgsProject,
+                       QgsFeature, QgsSymbol,
+                       QgsRendererCategory, QgsCategorizedSymbolRenderer,
+                       QgsRuleBasedRenderer)
 from sklearn.cluster import BisectingKMeans
 from scipy.spatial.distance import cdist
+
+from PyQt5.QtCore import QVariant
+from PyQt5.QtGui import QColor
 
 from .I_clustering_second_stage_feasible_solution_creator import IClusteringSecondStageFeasibleSolutionCreator
 from .clustering_second_stage_adapter import ClusteringSecondStageAdapter
@@ -31,6 +38,7 @@ class ClusteringSecondStage:
     # ToDo: Validate that it has all the required fields!
     first_stage_cluster_dict : defaultdict = None
     ready_to_start = False
+    selected_buildings_expression = ""
     feasible_solution_creator : IClusteringSecondStageFeasibleSolutionCreator = None
 
     PEAK_DEMAND_FIELD_NAME = "peak_demand"
@@ -41,10 +49,11 @@ class ClusteringSecondStage:
     MEMBER_LIST_KEY = "member_list"
     TOTAL_MEMBER_LIST_KEY = "total_member_list"
     DISTANCE_MATRIX_KEY = "distance_matrix"
+    USED_CAPACITY_KEY = "used_capacity"
 
-    def __init__(self):
-        # ToDo: Throw this away!! Just for tomorrow!
-        self.selected_buildings_expression = self.prepare_filter_expression()
+    # ToDo: DELETE THIS TOO!
+    CLUSTER_FIELD_NAME = "cluster"
+
 
     def set_first_stage_result(self, first_stage_cluster_dict,
                                buildings_layer,
@@ -74,7 +83,17 @@ class ClusteringSecondStage:
                                                          info_layer=self.building_centroids,
                                                          eliminate_buildings=cut_buildings,
                                                          number_of_clusters=number_of_clusters)
-                self.visualize_best_chromosome(best_chromosome)
+                # ToDo: DELETE EVERYTHING THAT FOLLOWS!!!
+                self.selected_buildings_expression = self.prepare_filter_expression()
+                output_layer = self.visualize_best_chromosome(best_chromosome)
+                cluster_ids = [cluster_id for cluster_id, cluster_members in best_chromosome.items()]
+                renderer = self.create_unique_cluster_colors_renderer(cluster_ids,
+                                                           output_layer.geometryType(),
+                                                           self.CLUSTER_FIELD_NAME)
+                self.visualize_clustering_results_by_repainting(output_layer, renderer)
+                # Except this maybe.
+                best_chromosome_with_capacities = self.calculate_used_capacity(best_chromosome, self.building_centroids)
+                Logger().debug(f"BRKGA Solution: {best_chromosome_with_capacities}")
 
 
     def generate_temporary_clustering_solution(self, cluster_id, cluster_members):
@@ -186,6 +205,29 @@ class ClusteringSecondStage:
         Logger().debug(f"Distance matrix has been created.\n Current dict: {cluster_dict}")
         return cluster_dict
 
+    def calculate_used_capacity(self, processed_cluster_dict, info_layer):
+        new_cluster_dict = {}
+        for cluster_center, cluster_members in processed_cluster_dict.items():
+            new_cluster_dict[cluster_center] = {
+                self.MEMBER_LIST_KEY: cluster_members,
+                self.USED_CAPACITY_KEY: self.calculate_used_capacity_for_one_cluster(cluster_center,
+                                                                                     cluster_members,
+                                                                                     info_layer)
+            }
+        return new_cluster_dict
+
+    def calculate_used_capacity_for_one_cluster(self, cluster_center, cluster_members, info_layer):
+        all_members = [cluster_center, cluster_members]
+        all_members = DhpUtility.flatten_list(all_members)
+        all_demands = []
+        for member in all_members:
+            all_demands.append(float(DhpUtility.get_value_from_feature_by_id_field(info_layer,
+                                                        self.UNIQUE_ID_FIELD_NAME_CENTROIDS,
+                                                        member,
+                                                        self.PEAK_DEMAND_FIELD_NAME)))
+        return sum(all_demands)
+
+
 
     # ToDo: Delete this. Just for tommorow!
     def visualize_best_chromosome(self, best_chromosome):
@@ -203,11 +245,18 @@ class ClusteringSecondStage:
             new_feature.setAttributes(building.attributes())
             output_layer_data.addFeature(new_feature)
 
-        for index, row in cluster_results.iterrows():
-            value = str(row.iloc[self.CLUSTER_RESULTS_CLUSTER_COL_N])
-            DhpUtility.assign_value_to_field_by_id(output_layer, self.SHARED_ID_FIELD_NAME, index,
-                                                   self.CLUSTER_FIELD_NAME, value)
-
+        for cluster_center, cluster_members in best_chromosome.items():
+            for cluster_member in cluster_members:
+                DhpUtility.assign_value_to_field_by_id(output_layer,
+                                                       self.UNIQUE_ID_FIELD_NAME_CENTROIDS,
+                                                       cluster_member,
+                                                       self.CLUSTER_FIELD_NAME,
+                                                       cluster_center)
+            DhpUtility.assign_value_to_field_by_id(output_layer,
+                                                   self.UNIQUE_ID_FIELD_NAME_CENTROIDS,
+                                                   cluster_center,
+                                                   self.CLUSTER_FIELD_NAME,
+                                                   cluster_center)
         QgsProject.instance().addMapLayer(output_layer)
         return output_layer
         pass
@@ -221,4 +270,23 @@ class ClusteringSecondStage:
         osm_list = ",".join(f"'{osm_id}'" for osm_id in osm_ids)
         expression = f"{self.UNIQUE_ID_FIELD_NAME_CENTROIDS} IN ({osm_list})"
         return expression
+
+    # ToDo: THIS TOO!
+    def create_unique_cluster_colors_renderer(self, labels, geometry_type, cluster_field):
+        unique_labels = set(labels)
+        categories = []
+        for cluster_id in unique_labels:
+            cluster_id = str(cluster_id)
+            symbol = QgsSymbol.defaultSymbol(geometry_type)
+            colors = QColor.fromRgb(random.randrange(0,256), random.randrange(0,256), random.randrange(0,256))
+            symbol.setColor(colors)
+            category = QgsRendererCategory(cluster_id, symbol, cluster_id)
+            categories.append(category)
+        renderer = QgsCategorizedSymbolRenderer(cluster_field, categories)
+        return renderer
+
+    # ToDo: THIS TOO!
+    def visualize_clustering_results_by_repainting(self, output_layer, renderer):
+        output_layer.setRenderer(renderer)
+        output_layer.triggerRepaint()
 

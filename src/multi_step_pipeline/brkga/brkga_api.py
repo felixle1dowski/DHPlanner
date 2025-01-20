@@ -12,7 +12,7 @@ from .brkga import Brkga
 
 class BrkgaAPI:
 
-    NUM_GENERATIONS = 10 # this is low. See: Praseyeto (2015).
+    NUM_GENERATIONS = 100 # this is low. See: Praseyeto (2015).
     SEED = 1
     # ToDo: Set in Config!
 
@@ -37,7 +37,7 @@ class BrkgaAPI:
         if eliminate_buildings:
             self.do_brkga_with_elimination()
         else:
-            self.do_brkga_without_elimination(distance_matrix,
+            best_fitness, best_chromosome = self.do_brkga_without_elimination(distance_matrix,
                                               max_capacity,
                                               demands,
                                               num_clusters,
@@ -45,6 +45,7 @@ class BrkgaAPI:
                                               warm_start,
                                               total_distance,
                                               total_member_list)
+            return best_fitness, best_chromosome
         return {}
 
     def do_brkga_with_elimination(self):
@@ -68,7 +69,8 @@ class BrkgaAPI:
                       sense=Sense.MINIMIZE,
                       decoder=decoder,
                       initial_solution=initial_solution)
-        brkga.do_brkga()
+        best_fitness, best_chromosome = brkga.do_brkga()
+        return best_fitness, best_chromosome
 
     def encode_warm_start(self, warm_start, total_member_list : list):
         random.seed(self.SEED)
