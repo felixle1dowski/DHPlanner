@@ -2,6 +2,7 @@ from PyQt5.QtCore import QVariant
 from qgis.core import QgsField, QgsFeatureRequest, QgsExpression, QgsVectorLayer, QgsProject
 from qgis import processing
 from .logger import Logger
+from .id_wallet import IdWallet
 
 class DhpUtility:
     """Offers utility methods for DHP"""
@@ -16,6 +17,19 @@ class DhpUtility:
             feature.setAttribute(f"{id_field_name}", idx)
             layer.updateFeature(feature)
             idx += 1
+
+    @staticmethod
+    def assign_unique_ids_custom_name(layer, id_field_name):
+        """Assigns unique IDs in a layer that has partially unique ids."""
+        layer.startEditing()
+        id_set = set()
+        feature_list = DhpUtility.convert_iterator_to_list(layer.getFeatures())
+        for feature in feature_list:
+            value = DhpUtility.get_value_from_field(layer, feature, id_field_name)
+            id_set.add(value)
+            if value in id_set:
+                DhpUtility.assign_unique_id_custom_id_field(layer, feature, id_field_name)
+
 
     @staticmethod
     def assign_unique_id(layer, feature, id_field_name):
@@ -37,6 +51,11 @@ class DhpUtility:
         feature.setAttribute(id_field_index, unique_id)
         return unique_id
 
+    @staticmethod
+    def assign_unique_id_custom_id_field(layer, feature, id_field_name):
+        new_highest_id = IdWallet().get_new_id(layer, id_field_name)
+        DhpUtility.assign_value_to_field(layer, id_field_name, feature, new_highest_id)
+        return new_highest_id
 
     @staticmethod
     def assign_value_to_field(layer, field_name, feature, value):
@@ -85,7 +104,16 @@ class DhpUtility:
             layer.updateFeature(feature)
         layer.commitChanges()
 
-        print(f"Field '{new_field_name}' added and values from '{existing_field_name}' copied.")
+    @staticmethod
+    def add_field(layer, new_field_name, field_type):
+        layer.startEditing()
+        existing_field_idx = layer.fields().indexFromName(new_field_name)
+        if existing_field_idx != -1:
+            raise ValueError(f"Field '{new_field_name}' already exists in the layer.")
+        layer.dataProvider().addAttributes([QgsField(f"{new_field_name}", field_type)])
+        layer.updateFields()
+        layer.commitChanges()
+        Logger().debug(f"Field '{new_field_name}' added to layer '{layer.name()}'.")
 
     @staticmethod
     def copy_values_between_fields(layer, source_field_name, target_field_name):
@@ -246,3 +274,10 @@ class DhpUtility:
         if debug:
             QgsProject.instance().addMapLayer(output_layer)
         return output_layer
+
+    @staticmethod
+    def delete_features_custom_id(layer, id_field_name, id_value):
+        provider = layer.dataProvider()
+        feature = DhpUtility.get_feature_by_id_field(layer, id_field_name, id_value)
+        provider.deleteFeatures([feature.id()])
+        layer.commitChanges()

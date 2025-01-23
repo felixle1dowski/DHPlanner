@@ -33,7 +33,7 @@ class Preprocessing:
     PEAK_MONTH_HEATING_DEMAND_PCT = 0.16 # for January - Jebamalai et al. (2019)
     MONTHS_IN_YEAR = 12
 
-    RESTRICT_ROAD_TYPES = True
+    RESTRICT_ROAD_TYPES = False
 
     def __init__(self):
         pass
@@ -63,7 +63,7 @@ class Preprocessing:
         self.__verify_layer(Config().get_roads_layer_name(), True)
         self.__explode_road_lines()
         self.__measure_lengths_of_roads()
-        DhpUtility.assign_unique_ids(self.selected_roads_exploded, "id")
+        DhpUtility.assign_unique_ids_custom_name(self.selected_roads_exploded, "osm_id")
         Logger().info("Roads have been preprocessed successfully.")
         self.__find_centroids_of_buildings()
         DhpUtility.assign_unique_ids(self.buildings_centroids, "id")

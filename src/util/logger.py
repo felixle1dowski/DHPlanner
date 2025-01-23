@@ -13,7 +13,6 @@ class Logger:
     LOG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../app.log")
 
     def __new__(cls, *args, **kwargs):
-        """Override __new__ to ensure only one instance of Logger is created."""
         if not cls._instance:
             cls._instance = super(Logger, cls).__new__(cls, *args, **kwargs)
         return cls._instance

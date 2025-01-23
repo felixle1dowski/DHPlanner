@@ -1,6 +1,11 @@
 import networkx as nx
+
+from ..util import function_timer
 from ..util.logger import Logger
+from ..util.dhp_utility import DhpUtility
+from ..util.function_timer import FunctionTimer
 from qgis.core import QgsCoordinateReferenceSystem, QgsVectorLayer, QgsFeature, QgsProject
+
 
 class MSTCreator:
     graph_creator_result = None
@@ -10,10 +15,13 @@ class MSTCreator:
     access_point_lines = None
     LOG_PATH = False
     DESIRED_CRS = QgsCoordinateReferenceSystem('EPSG:4839')
+    function_timer = FunctionTimer()
 
     def __init__(self):
         pass
 
+
+    @function_timer.timed_function
     def set_graph_creator_result(self, graph_creator_result):
         self.graph_creator_result = graph_creator_result
         self.street_graph = graph_creator_result.street_graph
@@ -21,13 +29,15 @@ class MSTCreator:
         self.exploded_roads = graph_creator_result.exploded_roads
         self.access_point_lines = graph_creator_result.access_point_lines
 
+    @function_timer.timed_function
     def start(self):
-        ap_nodes = self.__find_ap_nodes()
-        shortest_path_graph = self.__construct_shortest_paths_graph(ap_nodes)
-        mst = self.__create_mst(shortest_path_graph)
-        self.__visualize_mst(mst)
+        ap_nodes = self.find_ap_nodes()
+        shortest_path_graph = self.construct_shortest_paths_graph(ap_nodes)
+        mst = self.create_mst(shortest_path_graph)
+        self.visualize_mst(mst)
 
-    def __find_ap_nodes(self):
+    @function_timer.timed_function
+    def find_ap_nodes(self):
         nodes = []
         nodes_from_graph = self.street_graph.nodes
         for node in nodes_from_graph:
@@ -36,7 +46,8 @@ class MSTCreator:
                 nodes.append(node)
         return nodes
 
-    def __construct_shortest_paths_graph(self, ap_nodes):
+    @function_timer.timed_function
+    def construct_shortest_paths_graph(self, ap_nodes):
         shortest_path_graph = nx.Graph()
         shortest_paths = {}
         for i in range(len(ap_nodes)):
@@ -60,17 +71,20 @@ class MSTCreator:
                 edge_ids = [self.street_graph.get_edge_data(u, v).get('id') for u, v in edges_in_path]
                 shortest_path_graph.add_edge(source, target, weight=path_info['length'], edge_ids=edge_ids)
                 if self.LOG_PATH:
-                    self.__log_path(source, target, edge_ids)
+                    self.log_path(source, target, edge_ids)
         return shortest_path_graph
 
-    def __log_path(self, source, target, edge_ids):
+    @function_timer.timed_function
+    def log_path(self, source, target, edge_ids):
         Logger().debug(f'Path from {source} to {target}: {edge_ids}')
 
-    def __create_mst(self, shortest_path_graph):
+    @function_timer.timed_function
+    def create_mst(self, shortest_path_graph):
         mst = nx.minimum_spanning_tree(shortest_path_graph, weight='weight')
         return mst
 
-    def __visualize_mst(self, mst):
+    @function_timer.timed_function
+    def visualize_mst(self, mst):
         edge_ids = []
         for u, v, data in mst.edges(data=True):
             gotten_edge_ids = data.get('edge_ids')
@@ -84,7 +98,10 @@ class MSTCreator:
         provider = mst_layer.dataProvider()
         provider.addAttributes(self.exploded_roads.fields())
         mst_layer.updateFields()
-        source_features = {f.id(): f for f in self.exploded_roads.getFeatures()}
+        source_features = {DhpUtility.get_value_from_field(self.exploded_roads,
+                                                           f,
+                                                           "osm_id")
+                           : f for f in self.exploded_roads.getFeatures()}
         filtered_features = [source_features[feature_id] for feature_id in edge_ids if feature_id in source_features]
         for feature in filtered_features:
             new_feature = QgsFeature(mst_layer.fields())

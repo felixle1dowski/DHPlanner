@@ -30,7 +30,11 @@ class MultiStepPipeline(DHCCreationPipeline):
         Logger().info("Finished Preprocessing.")
         Logger().info("Starting First Stage Clustering.")
         self.graph_creator.set_preprocessing_result(preprocessing_result)
-        self.graph_creator.start()
+        graph_creation_result = self.graph_creator.start()
+        self.mst_creator.set_graph_creator_result(graph_creation_result)
+        self.timed_wrapper(self.mst_creator.start)
+        Logger().info("Finished MST Creation.")
+
 
 
 
