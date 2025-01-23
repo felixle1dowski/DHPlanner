@@ -101,7 +101,10 @@ class GraphCreator:
 
     # ToDo: Check with Set for duplicates. Should speed this up!
     def collect_roads_graph_nodes_and_edges(self):
-        """Constructs the roads graph only from roads."""
+        """Constructs the roads graph only from roads.
+        Note: If the node is a building, the key in the nodes dictionary is its ID.
+        Its the coordinates of the node otherwise.
+        """
         roads = self.exploded_roads.getFeatures()
         has_ap_idx = self.exploded_roads.fields().indexFromName('has_ap')
         connected_to_building_idx = self.exploded_roads.fields().indexFromName('connected_to_building')
@@ -132,10 +135,11 @@ class GraphCreator:
                 if road.attributes()[has_ap_idx] == "True":
                     building_id = road.attributes()[connected_to_building_idx]
                     new_end_node = GraphCreator.GraphNode(True, building_id, end_point)
+                    nodes[building_id] = new_end_node
                 else:
                     new_end_node = GraphCreator.GraphNode(False, building_id, end_point)
+                    nodes[building_id] = new_end_node
                 road_nodes.append(end_point)
-                nodes[end_point] = new_end_node
                 Logger().debug(f'added road node ending point of road with id {road.id()}. Is connecting graph to building'
                                f' with id {building_id}')
             else:
