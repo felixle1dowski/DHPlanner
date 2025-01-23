@@ -20,11 +20,10 @@ from dataclasses import dataclass
 
 
 class GraphCreator:
-
     class GraphNode:
-        has_ap : bool
-        ap_id : int
-        coordinates : QgsPointXY
+        has_ap: bool
+        ap_id: int
+        coordinates: QgsPointXY
 
         def __init__(self, has_ap, ap_id, coordinates):
             self.has_ap = has_ap
@@ -43,6 +42,8 @@ class GraphCreator:
             self.weight = weight
             self.id = id
 
+    DEBUG = True
+
     ready_to_start = False
     exploded_roads = None
     building_centroids = None
@@ -54,6 +55,10 @@ class GraphCreator:
     """Indiciates whether there's a plot of a graph to be generated for debugging purposes."""
     PERP_LINE_LENGTH = 20.0
     """Determines the length of the perpendicular lines that are used to split road lines."""
+    HUB_FIELD_NAME = "HubName"
+    ACCESS_POINT_ID_FIELD_NAME = "ap_id"
+    ID_FIELD_NAME_BUILDINGS = "id"
+    AP_ID_FIELD_NAME = "idx"
 
     def __init__(self):
         pass
@@ -63,28 +68,39 @@ class GraphCreator:
         self.building_centroids = preprocessing_result.building_centroids
         self.ready_to_start = True
 
-    def start(self):
-        """Central method of GraphCreator class. Returns Complete graph and representation layer.
-        (That means that all start and end points of roads are also present,
-        even if they aren't needed in further processing.)"""
+    def start(self) -> GraphCreatorResult:
+        """
+        Main Method of the Graph Creator. Executes the Graph Creation Pipeline.
+        Only invokable after Preprocessing Result is set.
+
+        :return: Finished Roads Graph.
+        :rtype: GraphCreatorResult
+        """
         if not self.ready_to_start:
             raise Exception("Preprocessing result is not set.")
-        roads_as_points = self.__convert_line_to_points(self.exploded_roads)
+        roads_as_points = DhpUtility.convert_line_to_points(layer=self.exploded_roads,
+                                                            distance_of_points=self.DISTANCE_OF_POINTS,
+                                                            debug=self.DEBUG)
+        # Making sure that all necessary information are available in the roads_as_points layer.
         DhpUtility.add_field_and_copy_values(roads_as_points, "road_id", "id")
         DhpUtility.copy_values_between_fields(roads_as_points, "idx", "id")
-        access_points_lines = self.__find_building_access_points(roads_as_points)
-        only_access_points = self.__remove_unused_points(access_points_lines, roads_as_points, "idx")
-        self.__add_access_points_ids_to_buildings(access_points_lines)
+        access_points_lines = self.find_building_access_points(roads_as_points)
+        only_access_points = self.remove_unused_points(access_points_lines,
+                                                       self.HUB_FIELD_NAME,
+                                                       roads_as_points,
+                                                       "idx")
+        self.add_access_points_ids_to_buildings(access_points_lines, self.ACCESS_POINT_ID_FIELD_NAME, self.HUB_FIELD_NAME)
         Logger().info("Constructing roads graph.")
-        self.__add_access_points_to_roads_layer(only_access_points)
-        nodes, edges = self.__collect_roads_graph_nodes_and_edges()
-        self.__construct_nx_graph(nodes, edges)
+        self.add_access_points_to_roads_layer(only_access_points)
+        self.add_ap_lines_to_roads(only_access_points)
+        nodes, edges = self.collect_roads_graph_nodes_and_edges()
+        self.construct_nx_graph(nodes, edges)
 
         result = GraphCreatorResult(self.roads_graph, self.building_centroids, self.exploded_roads, access_points_lines)
         return result
 
     # ToDo: Check with Set for duplicates. Should speed this up!
-    def __collect_roads_graph_nodes_and_edges(self):
+    def collect_roads_graph_nodes_and_edges(self):
         """Constructs the roads graph only from roads."""
         roads = self.exploded_roads.getFeatures()
         has_ap_idx = self.exploded_roads.fields().indexFromName('has_ap')
@@ -98,7 +114,7 @@ class GraphCreator:
             road_line = road.geometry().asPolyline()
             start_point = road_line[0]
             end_point = road_line[1]
-            start_point_already_added = self.__check_if_node_already_added(start_point, road_nodes)
+            start_point_already_added = self.check_if_node_already_added(start_point, road_nodes)
             # we only want to add the starting point of a road, if it's not already present in the graph
             if start_point_already_added is None:
                 road_nodes.append(start_point)
@@ -114,9 +130,9 @@ class GraphCreator:
                 start_point_to_upgrade.ap_id = road.attributes()[ap_id_idx]
                 Logger().debug(f'an end-node was upgraded to have an ap. Ap with id '
                                f'{start_point_to_upgrade.ap_id} was added.')
-        ###############################################################################
+            ###############################################################################
 
-            end_point_already_added = self.__check_if_node_already_added(end_point, road_nodes)
+            end_point_already_added = self.check_if_node_already_added(end_point, road_nodes)
             # same thing for the end point of a road. Only add it, if it's not already present in the graph
             if end_point_already_added is None:
                 ap_id = None
@@ -147,13 +163,13 @@ class GraphCreator:
             edges.append(GraphCreator.GraphEdge(start_point, end_point, weight, id))
         return (nodes, edges)
 
-    def __check_if_node_already_added(self, node, node_list: list):
+    def check_if_node_already_added(self, node, node_list: list):
         for existing_node in node_list:
             if node.x() == existing_node.x() and node.y() == existing_node.y():
                 return existing_node
         return None
 
-    def __construct_nx_graph(self, nodes, edges):
+    def construct_nx_graph(self, nodes, edges):
         roads_graph = nx.Graph()
         for node_point, node_information in nodes.items():
             node_info = {
@@ -166,10 +182,10 @@ class GraphCreator:
             roads_graph.add_edge(edge.node_1, edge.node_2, weight=edge.weight, id=edge.id)
         self.roads_graph = roads_graph
         if self.DRAW_GRAPH:
-            self.__plot_graph(roads_graph)
+            self.plot_graph(roads_graph)
 
-    def __plot_graph(self, roads_graph: nx.Graph):
-        plt.figure(figsize=(50,50))
+    def plot_graph(self, roads_graph: nx.Graph):
+        plt.figure(figsize=(50, 50))
         pos = nx.spring_layout(roads_graph)
         nx.draw(roads_graph, pos, with_labels=True)
         edge_labels = {edge: f'{weight:.2f}' for edge, weight in nx.get_edge_attributes(roads_graph, 'weight').items()}
@@ -177,10 +193,17 @@ class GraphCreator:
         # ToDo: Put the path in config!
         plt.savefig('/Users/felixlewandowski/Documents/ba/graph.png')
 
-    def __find_building_access_points(self, lines_as_points_layer):
-        """Find the building access points. Adds them to graph representation layer."""
+    def find_building_access_points(self, lines_as_points_layer: QgsVectorLayer):
+        """
+
+        :param lines_as_points_layer: A point layer that was generated from a lines layer.
+        :type lines_as_points_layer:  QgsVectorLayer
+        :return: a new layer with
+        :rtype: QgsVectorLayer
+        """
         provider = self.building_centroids.dataProvider()
-        max_id = max([feature['id'] for feature in self.building_centroids.getFeatures() if isinstance(feature['id'], (int, float))], default=0)
+        max_id = max([feature['id'] for feature in self.building_centroids.getFeatures() if
+                      isinstance(feature['id'], (int, float))], default=0)
 
         # make road lines into points first, so we can find the shortest distance.
         roads_as_points = lines_as_points_layer
@@ -192,32 +215,33 @@ class GraphCreator:
             'UNIT': 0,
             'OUTPUT': "memory:"
         })
-        # ToDo: For debugging purposes! The GUI representation is for debugging. Layer can be kept internally.
         output_layer = result['OUTPUT']
         output_layer.setName('Lines to Access Points')
-        QgsProject.instance().addMapLayer(output_layer)
+        if self.DEBUG:
+            QgsProject.instance().addMapLayer(output_layer)
         return output_layer
 
-    def __convert_line_to_points(self, layer):
-        output_layer_path = "memory:"
-        result = processing.run("native:pointsalonglines", {
-            'INPUT': layer,
-            'OUTPUT': output_layer_path,
-            'DISTANCE': self.DISTANCE_OF_POINTS,
-        })
-        # ToDo: For debugging purposes!
-        output_layer = result['OUTPUT']
-        output_layer.setName('points_on_line')
-        DhpUtility.assign_unique_ids(output_layer, "idx")
-        QgsProject.instance().addMapLayer(output_layer)
-        return output_layer
+    def remove_unused_points(self, line_layer: QgsVectorLayer,
+                             field_name_id_referral: str,
+                             point_layer: QgsVectorLayer,
+                             id_column_title: str):
+        """
+        Removes all points from a lines layer that is not specified as a point to keep.
 
-    def __remove_unused_points(self, line_layer, point_layer, id_column_title):
-        """removes points by ids obtained by line layer. Only usable if a connection id is
-        available."""
+        :param line_layer: the line layer featuring which points to keep.
+        :type line_layer: QgsVectorLayer
+        :param field_name_id_referral: the field name id on the line layer referring to the points.
+        :type field_name_id_referral: str
+        :param point_layer: the point layer featuring points to keep and points to remove.
+        :type point_layer: QgsVectorLayer
+        :param id_column_title: the id column title.
+        :type id_column_title: str
+        :return: the edited point layer.
+        :rtype: QgsVectorLayer
+        """
         ids_of_points_to_keep = []
         for line in line_layer.getFeatures():
-            hub_idx = line.fieldNameIndex('HubName')
+            hub_idx = line.fieldNameIndex(field_name_id_referral)
             hub = line.attributes()[hub_idx]
             ids_of_points_to_keep.append(hub)
         expression = QgsExpression(f'"{id_column_title}" NOT IN ({", ".join([f"{p}" for p in ids_of_points_to_keep])})')
@@ -233,29 +257,40 @@ class GraphCreator:
         point_layer.commitChanges()
         return point_layer
 
-    def __add_access_points_ids_to_buildings(self, access_lines_layer):
-        building_points = self.building_centroids.getFeatures()
-        access_point_id_column_name = "ap_id"
-        building_points_provider = self.building_centroids.dataProvider()
-        self.building_centroids.startEditing()
-        building_points_provider.addAttributes([QgsField(f"{access_point_id_column_name}",
-                                                                       QVariant.Int)])
-        self.building_centroids.updateFields()
-        for line in access_lines_layer.getFeatures():
-            building_id = line.id()
-            hub_idx = line.fieldNameIndex('HubName')
-            hub_id = line.attributes()[hub_idx]
-            ap_id_idx = self.building_centroids.fields().indexFromName(access_point_id_column_name)
-            (self.building_centroids
-             .changeAttributeValue(building_id,
-                                   ap_id_idx,
-                                   hub_id))
-        self.building_centroids.commitChanges()
+    def add_access_points_ids_to_buildings(self, access_lines_layer: QgsVectorLayer,
+                                           access_points_id_field_name: str,
+                                           hub_field_name: str):
+        """
 
-    def __add_access_points_to_roads_layer(self, access_points):
+        :param access_lines_layer:
+        :type access_lines_layer:
+        :param access_points_id_field_name:
+        :type access_points_id_field_name:
+        :param hub_field_name:
+        :type hub_field_name:
+        """
+        DhpUtility.create_new_field(self.building_centroids,
+                                    access_points_id_field_name,
+                                    QVariant.Int)
+        for line in access_lines_layer.getFeatures():
+            building_id = DhpUtility.get_value_from_field(access_lines_layer,
+                                                          line,
+                                                          self.ID_FIELD_NAME_BUILDINGS)
+            hub_id = DhpUtility.get_value_from_field(access_lines_layer,
+                                            line,
+                                            self.HUB_FIELD_NAME)
+            DhpUtility.assign_value_to_field(self.building_centroids,
+                                             access_points_id_field_name,
+                                             DhpUtility.get_feature_by_id_field(self.building_centroids,
+                                                                                "id",
+                                                                                int(building_id)),
+                                            int(hub_id))
+
+    def add_access_points_to_roads_layer(self, access_points):
         roads = self.exploded_roads
         roads_provider = roads.dataProvider()
         access_points_features = access_points.getFeatures()
+        # ToDo: Put those into another function! I don't need to create the fields here!
         DhpUtility.create_new_field(roads, "has_ap", QVariant.String)
         DhpUtility.create_new_field(roads, "ap_id", QVariant.Int)
         road_split_points = {}
@@ -322,9 +357,6 @@ class GraphCreator:
                     new_road_id = DhpUtility.assign_unique_id(roads, feature, "id")
                     DhpUtility.assign_value_to_field(roads, "length", feature, line_geometry.length())
                     DhpUtility.assign_value_to_field(access_points, "road_id", second_element[1], new_road_id)
-                    DhpUtility.assign_value_to_field(roads, "has_ap", feature, "True")
-                    ap_id = second_element[1].id()
-                    DhpUtility.assign_value_to_field(roads, "ap_id", feature, ap_id)
                     roads_provider.addFeature(feature)
                     break
 
@@ -335,21 +367,41 @@ class GraphCreator:
                 new_road_id = DhpUtility.assign_unique_id(roads, feature, "id")
                 DhpUtility.assign_value_to_field(roads, "length", feature, line_geometry.length())
                 if not is_last_iteration:
-                    DhpUtility.assign_value_to_field(roads, "has_ap", feature, "True")
-                    ap_id = second_element[1].id()
-                    DhpUtility.assign_value_to_field(roads, "ap_id", feature, ap_id)
                     # we also need to update the value in the access points.
                     DhpUtility.assign_value_to_field(access_points, "road_id", second_element[1], new_road_id)
-
-                else:
-                    DhpUtility.assign_value_to_field(roads, "has_ap", feature, "False")
                 roads_provider.addFeature(feature)
                 iteration += 1
             roads_provider.deleteFeatures([road_id])
         roads.commitChanges()
 
-    def __split_roads_with_point(self):
-        """Splits road by a point."""
-
-    def __add_building_nodes_to_graph(self):
-        """Add building nodes to the graph."""
+    def add_ap_lines_to_roads(self, ap_layer):
+        roads_provider = self.exploded_roads.dataProvider()
+        road_fields = self.exploded_roads.fields()
+        for centroid in self.building_centroids.getFeatures():
+            ap_id = DhpUtility.get_value_from_field(self.building_centroids,
+                                                    centroid,
+                                                    self.ACCESS_POINT_ID_FIELD_NAME)
+            ap_xy = DhpUtility.get_xy_by_id_field(ap_layer,
+                                                  self.AP_ID_FIELD_NAME,
+                                                  int(ap_id))
+            ap_xy_point = QgsPointXY(ap_xy[0], ap_xy[1])
+            centroid_xy = DhpUtility.get_xy_by_id_field(self.building_centroids,
+                                                        "id",
+                                                        centroid.id())
+            centroid_xy_point = QgsPointXY(centroid_xy[0], centroid_xy[1])
+            road_line = QgsGeometry.fromPolylineXY([ap_xy_point, centroid_xy_point])
+            feature = QgsFeature()
+            feature.setGeometry(road_line)
+            feature.setFields(road_fields)
+            DhpUtility.assign_unique_id(self.exploded_roads,
+                                        feature,
+                                        "id")
+            DhpUtility.assign_value_to_field(self.exploded_roads,
+                                             "length",
+                                             feature,
+                                             0)
+            DhpUtility.assign_value_to_field(self.exploded_roads,
+                                             "has_ap",
+                                             feature,
+                                             "True")
+            roads_provider.addFeature(feature)

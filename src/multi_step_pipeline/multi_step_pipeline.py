@@ -29,18 +29,23 @@ class MultiStepPipeline(DHCCreationPipeline):
         preprocessing_result = self.timed_wrapper(self.preprocessing.start)
         Logger().info("Finished Preprocessing.")
         Logger().info("Starting First Stage Clustering.")
-        self.clustering_first_stage.set_preprocessing_result(preprocessing_result.building_centroids)
-        clustering_first_stage_result = self.timed_wrapper(self.clustering_first_stage.start)
-        Logger().info("Finished First Stage Clustering.")
-        Logger().info("Starting Second Stage Clustering.")
-        # ToDo: This is dirty. Change this by creating a shared resources class that holds ressources like this.
-        buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
-        self.clustering_second_stage.set_first_stage_result(clustering_first_stage_result,
-                                                            buildings_layer,
-                                                            preprocessing_result.building_centroids,
-                                                            self.feasible_solution_creator)
-        self.timed_wrapper(self.clustering_second_stage.start)
-        Logger().info("Finished Second Stage Clustering.")
+        self.graph_creator.set_preprocessing_result(preprocessing_result)
+        self.graph_creator.start()
+
+
+
+        # self.clustering_first_stage.set_preprocessing_result(preprocessing_result.building_centroids)
+        # clustering_first_stage_result = self.timed_wrapper(self.clustering_first_stage.start)
+        # Logger().info("Finished First Stage Clustering.")
+        # Logger().info("Starting Second Stage Clustering.")
+        # # ToDo: This is dirty. Change this by creating a shared resources class that holds ressources like this.
+        # buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
+        # self.clustering_second_stage.set_first_stage_result(clustering_first_stage_result,
+        #                                                     buildings_layer,
+        #                                                     preprocessing_result.building_centroids,
+        #                                                     self.feasible_solution_creator)
+        # self.timed_wrapper(self.clustering_second_stage.start)
+        # Logger().info("Finished Second Stage Clustering.")
 
         # self.graph_creator.set_preprocessing_result(preprocessing_result)
         # graph_creation_result = self.timed_wrapper(self.graph_creator.start)
