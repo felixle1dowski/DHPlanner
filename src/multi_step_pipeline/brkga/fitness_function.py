@@ -7,18 +7,21 @@ from ...util.dhp_utility import DhpUtility
 
 class FitnessFunction:
 
-    def __init__(self, complete_graph, mst_creator):
+    def __init__(self, complete_graph, mst_creator, buildings_to_point_dict):
         self.complete_graph = complete_graph
         self.mst = mst_creator
+        self.buildings_to_point_dict = buildings_to_point_dict
 
     def compute_fitness(self, id_subset, cluster_center_id):
-        subset_graph = self.build_subset_graph(id_subset, cluster_center_id)
+        relevant_entries = {key: self.buildings_to_point_dict[key] for key in id_subset if key in self.buildings_to_point_dict}
+        point_translation = list(relevant_entries.values())
+        subset_graph = self.build_subset_graph(point_translation)
         mst = self.mst(subset_graph)
         tree = self.extract_tree(mst, cluster_center_id)
         pipe_cost = self.compute_pipe_cost(tree)
 
-    def build_subset_graph(self, id_subset: list, cluster_center_id):
-        subset_graph = self.complete_graph.subgraph(id_subset)
+    def build_subset_graph(self, point_subset: list):
+        subset_graph = self.complete_graph.subgraph(point_subset)
         return subset_graph
 
     def create_mst(self, subset_graph):

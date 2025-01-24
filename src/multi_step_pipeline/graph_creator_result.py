@@ -8,3 +8,4 @@ class GraphCreatorResult:
     building_centroids : QgsVectorLayer
     exploded_roads : QgsVectorLayer
     access_point_lines : QgsVectorLayer
+    building_to_point_dict : dict

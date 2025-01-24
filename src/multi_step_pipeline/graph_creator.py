@@ -21,21 +21,12 @@ from dataclasses import dataclass
 
 class GraphCreator:
     class GraphNode:
-        has_ap: bool
-        building_id: str
-        coordinates: QgsPointXY
-
         def __init__(self, has_ap, building_id, coordinates):
             self.has_ap = has_ap
             self.building_id = building_id
             self.coordinates = coordinates
 
     class GraphEdge:
-        node_1 = None
-        node_2 = None
-        weight = None
-        id = None
-
         def __init__(self, node_1, node_2, weight, id):
             self.node_1 = node_1
             self.node_2 = node_2
@@ -88,15 +79,17 @@ class GraphCreator:
                                                        self.HUB_FIELD_NAME,
                                                        roads_as_points,
                                                        "idx")
-        self.add_access_points_ids_to_buildings(access_points_lines, self.ACCESS_POINT_ID_FIELD_NAME, self.HUB_FIELD_NAME)
+        self.add_access_points_ids_to_buildings(access_points_lines, self.ACCESS_POINT_ID_FIELD_NAME,
+                                                self.HUB_FIELD_NAME)
         Logger().info("Constructing roads graph.")
         self.add_access_points_to_roads_layer(only_access_points)
         DhpUtility.create_new_field(self.exploded_roads, "has_ap", QVariant.String)
         self.add_ap_lines_to_roads(only_access_points)
-        nodes, edges = self.collect_roads_graph_nodes_and_edges()
+        nodes, edges, building_to_point_dict = self.collect_roads_graph_nodes_and_edges()
         self.construct_nx_graph(nodes, edges)
 
-        result = GraphCreatorResult(self.roads_graph, self.building_centroids, self.exploded_roads, access_points_lines)
+        result = GraphCreatorResult(self.roads_graph, self.building_centroids, self.exploded_roads, access_points_lines,
+                                    building_to_point_dict)
         return result
 
     # ToDo: Check with Set for duplicates. Should speed this up!
@@ -112,6 +105,8 @@ class GraphCreator:
         road_nodes = []
         nodes = {}
         edges = []
+        # this dict is for later translation. We have the building_ids corresponding to a point in the graph.
+        building_point_translation = {}
         # We iterate over every road in our selected roads to add them to our graph
         for road in roads:
             road_line = road.geometry().asPolyline()
@@ -135,13 +130,14 @@ class GraphCreator:
                 if road.attributes()[has_ap_idx] == "True":
                     building_id = road.attributes()[connected_to_building_idx]
                     new_end_node = GraphCreator.GraphNode(True, building_id, end_point)
-                    nodes[building_id] = new_end_node
+                    building_point_translation[building_id] = end_point
                 else:
                     new_end_node = GraphCreator.GraphNode(False, building_id, end_point)
-                    nodes[building_id] = new_end_node
                 road_nodes.append(end_point)
-                Logger().debug(f'added road node ending point of road with id {road.id()}. Is connecting graph to building'
-                               f' with id {building_id}')
+                nodes[end_point] = new_end_node
+                Logger().debug(
+                    f'added road node ending point of road with id {road.id()}. Is connecting graph to building'
+                    f' with id {building_id}')
             else:
                 end_point = end_point_already_added
                 Logger().debug(f'ending point of road_node with id {road.id()} was already added')
@@ -151,7 +147,8 @@ class GraphCreator:
             osm_id_idx = road.fieldNameIndex('osm_id')
             id_ = road.attributes()[osm_id_idx]
             edges.append(GraphCreator.GraphEdge(start_point, end_point, weight, id_))
-        return (nodes, edges)
+        Logger().debug(f"building_point_translation {building_point_translation}")
+        return (nodes, edges, building_point_translation)
 
     def check_if_node_already_added(self, node, node_list: list):
         for existing_node in node_list:
@@ -182,7 +179,7 @@ class GraphCreator:
         edge_labels = {edge: f'{weight:.2f}' for edge, weight in nx.get_edge_attributes(roads_graph, 'weight').items()}
         nx.draw_networkx_edge_labels(roads_graph, pos, edge_labels=edge_labels)
         # ToDo: Put the path in config!
-        plt.savefig(Config().get_debug_folder_path()+'graph.png')
+        plt.savefig(Config().get_debug_folder_path() + 'graph.png')
 
     def find_building_access_points(self, lines_as_points_layer: QgsVectorLayer):
         """
@@ -264,14 +261,14 @@ class GraphCreator:
                                                           line,
                                                           self.ID_FIELD_NAME_BUILDINGS)
             hub_id = DhpUtility.get_value_from_field(access_lines_layer,
-                                            line,
-                                            self.HUB_FIELD_NAME)
+                                                     line,
+                                                     self.HUB_FIELD_NAME)
             DhpUtility.assign_value_to_field(self.building_centroids,
                                              access_points_id_field_name,
                                              DhpUtility.get_feature_by_id_field(self.building_centroids,
                                                                                 "id",
                                                                                 int(building_id)),
-                                            int(hub_id))
+                                             int(hub_id))
 
     def add_access_points_to_roads_layer(self, access_points):
         roads = self.exploded_roads

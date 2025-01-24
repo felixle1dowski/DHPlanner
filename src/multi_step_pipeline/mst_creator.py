@@ -30,30 +30,19 @@ class MSTCreator:
         self.access_point_lines = graph_creator_result.access_point_lines
 
     @function_timer.timed_function
-    def start(self):
-        ap_nodes = self.find_ap_nodes()
-        shortest_path_graph = self.construct_shortest_paths_graph(ap_nodes)
+    def start(self, relevant_nodes):
+        shortest_path_graph = self.construct_shortest_paths_graph(relevant_nodes)
         mst = self.create_mst(shortest_path_graph)
         self.visualize_mst(mst)
 
     @function_timer.timed_function
-    def find_ap_nodes(self):
-        nodes = []
-        nodes_from_graph = self.street_graph.nodes
-        for node in nodes_from_graph:
-            node_info = self.street_graph.nodes[node]
-            if node_info['has_ap']:
-                nodes.append(node)
-        return nodes
-
-    @function_timer.timed_function
-    def construct_shortest_paths_graph(self, ap_nodes):
+    def construct_shortest_paths_graph(self, relevant_nodes):
         shortest_path_graph = nx.Graph()
         shortest_paths = {}
-        for i in range(len(ap_nodes)):
-            for j in range(i + 1, len(ap_nodes)):
-                source = ap_nodes[i]
-                target = ap_nodes[j]
+        for i in range(len(relevant_nodes)):
+            for j in range(i + 1, len(relevant_nodes)):
+                source = relevant_nodes[i]
+                target = relevant_nodes[j]
                 try:
                     path = nx.shortest_path(self.street_graph, source, target, weight='weight')
                     path_length = nx.shortest_path_length(self.street_graph, source, target, weight='weight')
@@ -63,7 +52,7 @@ class MSTCreator:
                     }
                 except nx.NetworkXNoPath:
                     shortest_paths[(source, target)] = None
-        shortest_path_graph.add_nodes_from(ap_nodes)
+        shortest_path_graph.add_nodes_from(relevant_nodes)
         for (source, target), path_info in shortest_paths.items():
             if path_info is not None:
                 edges_in_path = [(path_info['path'][k], path_info['path'][k + 1]) for k in

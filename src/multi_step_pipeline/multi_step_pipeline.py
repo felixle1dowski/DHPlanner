@@ -32,7 +32,9 @@ class MultiStepPipeline(DHCCreationPipeline):
         self.graph_creator.set_preprocessing_result(preprocessing_result)
         graph_creation_result = self.graph_creator.start()
         self.mst_creator.set_graph_creator_result(graph_creation_result)
-        self.timed_wrapper(self.mst_creator.start)
+        building_to_point_dict = graph_creation_result.building_to_point_dict
+        relevant_nodes = list(building_to_point_dict.values())
+        self.mst_creator.start(relevant_nodes)
         Logger().info("Finished MST Creation.")
 
 
