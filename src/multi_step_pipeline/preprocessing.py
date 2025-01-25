@@ -44,34 +44,34 @@ class Preprocessing:
         # ToDo: Add back in, when we use files again instead of layers.
         # self.roads_layer_path = Config().get_roads_path()
         # self.buildings_layer_path = Config().get_buildings_path()
-        self.__verify_layer(Config().get_selection_layer_name(), True)
+        self.verify_layer(Config().get_selection_layer_name(), True)
         self.selection_layer = QgsProject.instance().mapLayersByName(Config().get_selection_layer_name())[0]
-        self.__verify_layer(Config().get_roads_layer_name())
+        self.verify_layer(Config().get_roads_layer_name())
         self.roads_layer = QgsProject.instance().mapLayersByName(Config().get_roads_layer_name())[0]
-        self.__verify_layer(Config().get_buildings_layer_name())
+        self.verify_layer(Config().get_buildings_layer_name())
         self.buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
-        self.__verify_layer(Config().get_heat_demands_layer_name())
+        self.verify_layer(Config().get_heat_demands_layer_name())
         self.heating_demand_layer = QgsProject.instance().mapLayersByName(Config().get_heat_demands_layer_name())[0]
 
         # ToDo: Is selection_layer necessary in the parameters?
-        self.__select_features(self.roads_layer, self.selection_layer)
-        self.__select_features(self.buildings_layer, self.selection_layer)
-        self.__select_features(self.heating_demand_layer, self.selection_layer)
+        self.select_features(self.roads_layer, self.selection_layer)
+        self.select_features(self.buildings_layer, self.selection_layer)
+        self.select_features(self.heating_demand_layer, self.selection_layer)
 
         # ToDo: This is not good practice. I should not do this in place.
         # ToDo: I want to change this, so that I only work with temporary layers from the preprocessing stage onward.
-        self.__verify_layer(Config().get_roads_layer_name(), True)
-        self.__explode_road_lines()
-        self.__measure_lengths_of_roads()
+        self.verify_layer(Config().get_roads_layer_name(), True)
+        self.explode_road_lines()
+        self.measure_lengths_of_roads()
         DhpUtility.assign_unique_ids_custom_name(self.selected_roads_exploded, "osm_id")
         Logger().info("Roads have been preprocessed successfully.")
-        self.__find_centroids_of_buildings()
+        self.find_centroids_of_buildings()
         DhpUtility.assign_unique_ids(self.buildings_centroids, "id")
-        self.__add_building_type_attribute()
+        self.add_building_type_attribute()
         Logger().info("Buildings have been preprocessed successfully.")
-        self.__add_heat_demands_to_building_centroids()
+        self.add_heat_demands_to_building_centroids()
         Logger().info("Building centroids have successfully been adjusted to display heat demands of buildings.")
-        self.__add_peak_demands_to_building_centroids()
+        self.add_peak_demands_to_building_centroids()
         Logger().info("Peak demands have been calculated successfully and added to the buildings centroids.")
 
         result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
@@ -79,7 +79,7 @@ class Preprocessing:
 
 
     # ToDo: needs to be tested.
-    def __verify_layer(self, layer_name, verify_crs=False):
+    def verify_layer(self, layer_name, verify_crs=False):
         """
         Verifies the layer for further processing.
 
@@ -98,10 +98,10 @@ class Preprocessing:
                              "CRS is necessary in order to calculate pipe"
                              "lengths in meters."
                              f"Changing CRS to {self.DESIRED_CRS}")
-            self.__convert_to_crs(layer, self.DESIRED_CRS)
+            self.convert_to_crs(layer, self.DESIRED_CRS)
         Logger().info(f"Layer {layer_name} has been verified successfully.")
 
-    def __convert_to_crs(self, layer, crs):
+    def convert_to_crs(self, layer, crs):
         source_crs = layer.crs()
         transform = QgsCoordinateTransform(source_crs, crs, QgsProject.instance())
         layer.startEditing()
@@ -114,7 +114,7 @@ class Preprocessing:
         layer.commitChanges()
         Logger().info("Selection CRS has been changed successfully.")
 
-    def __select_features(self, target_layer, selection_layer):
+    def select_features(self, target_layer, selection_layer):
         """Selects the features of the target_layer within the selection_layer. Uses Intersection."""
         if not target_layer.isEditable():
             target_layer.startEditing()
@@ -136,7 +136,7 @@ class Preprocessing:
         # iface.mapCanvas().refresh()
 
     # ToDo: can we generalize this? Not only for roads, but for lines in general?
-    def __explode_road_lines(self):
+    def explode_road_lines(self):
         """Explodes the road lines. Purposes:
         1) Make MultiLine Layer to Line Layer.
         2) Optionally filter out undesired road types.
@@ -176,7 +176,7 @@ class Preprocessing:
         Logger().info("Selected MultiLineStrings exploded successfully.")
 
     # ToDo: Generalize this for lengths in general.
-    def __measure_lengths_of_roads(self):
+    def measure_lengths_of_roads(self):
         """Creates dedicated length field for each feature."""
         self.selected_roads_exploded.startEditing()
         self.selected_roads_exploded.dataProvider().addAttributes([QgsField("length", QVariant.Double)])
@@ -189,7 +189,7 @@ class Preprocessing:
         self.selected_roads_exploded.commitChanges()
         Logger().info("Length of selected roads measured successfully.")
 
-    def __assign_ids_to(self, layer):
+    def assign_ids_to(self, layer):
         """Assigns unique IDs."""
         layer.startEditing()
         layer.dataProvider().addAttributes([QgsField("id", QVariant.Int)])
@@ -198,7 +198,7 @@ class Preprocessing:
             feature.setAttribute("id", feature.id())
             layer.updateFeature(feature)
 
-    def __find_centroids_of_buildings(self):
+    def find_centroids_of_buildings(self):
         params = {
             'INPUT': QgsProcessingFeatureSourceDefinition(
                 self.buildings_layer.source(),
@@ -213,14 +213,14 @@ class Preprocessing:
         self.buildings_centroids.updateFields()
         QgsProject.instance().addMapLayer(self.buildings_centroids)
 
-    def __add_building_type_attribute(self):
+    def add_building_type_attribute(self):
         layer = self.buildings_centroids
         layer.startEditing()
         for feature in layer.getFeatures():
             feature.setAttribute("Type", "building")
             layer.updateFeature(feature)
 
-    def __add_heat_demands_to_building_centroids(self):
+    def add_heat_demands_to_building_centroids(self):
         building_centroids = self.buildings_centroids
         building_centroids.startEditing()
         DhpUtility.create_new_field(building_centroids, self.INDIVIDUAL_HEAT_DEMAND_COL_NAME, QVariant.String)
@@ -248,8 +248,9 @@ class Preprocessing:
                     building_centroid_id = building_centroid.id()
                     raise Exception(f"Multiple heat demand geometries for building centroid with id {building_centroid_id} found.")
         building_centroids.commitChanges()
+        
 
-    def __add_peak_demands_to_building_centroids(self):
+    def add_peak_demands_to_building_centroids(self):
         """
             From: Rosa, et al. (2012)
         """
@@ -271,12 +272,12 @@ class Preprocessing:
             # unit: Kwh/hour
             load_factor = Config().get_load_factor(building_type)
 
-            peak_demand = self.__q_peak_calculation(peak_month_demand, self.COUNT_HOURS_IN_PEAK_MONTH, load_factor)
+            peak_demand = self.q_peak_calculation(peak_month_demand, self.COUNT_HOURS_IN_PEAK_MONTH, load_factor)
             DhpUtility.assign_value_to_field(building_centroids, self.PEAK_DEMAND_COL_NAME, centroid_feature, peak_demand)
 
 
 
     @staticmethod
-    def __q_peak_calculation(epeakm, t, lf):
+    def q_peak_calculation(epeakm, t, lf):
         result = epeakm / (t * lf)
         return result
