@@ -7,11 +7,12 @@ from ..util.function_timer import FunctionTimer
 from qgis.core import QgsCoordinateReferenceSystem, QgsVectorLayer, QgsFeature, QgsProject
 
 
-class MSTCreator:
+class ShortestPathGraphCreator:
     graph_creator_result = None
-    street_graph = None
+    relevant_nodes = None
+    graph = None
     building_centroids = None
-    exploded_roads = None
+    line_layer = None
     access_point_lines = None
     LOG_PATH = False
     DESIRED_CRS = QgsCoordinateReferenceSystem('EPSG:4839')
@@ -22,18 +23,17 @@ class MSTCreator:
 
 
     @function_timer.timed_function
-    def set_graph_creator_result(self, graph_creator_result):
-        self.graph_creator_result = graph_creator_result
-        self.street_graph = graph_creator_result.street_graph
-        self.building_centroids = graph_creator_result.building_centroids
-        self.exploded_roads = graph_creator_result.exploded_roads
-        self.access_point_lines = graph_creator_result.access_point_lines
+    def set_required_fields(self, graph, line_layer, relevant_nodes):
+        self.graph = graph
+        self.line_layer = line_layer
+        self.relevant_nodes = relevant_nodes
 
     @function_timer.timed_function
-    def start(self, relevant_nodes):
-        shortest_path_graph = self.construct_shortest_paths_graph(relevant_nodes)
+    def start(self):
+        shortest_path_graph = self.construct_shortest_paths_graph(self.relevant_nodes)
         mst = self.create_mst(shortest_path_graph)
         self.visualize_mst(mst)
+        return shortest_path_graph
 
     @function_timer.timed_function
     def construct_shortest_paths_graph(self, relevant_nodes):
@@ -44,8 +44,8 @@ class MSTCreator:
                 source = relevant_nodes[i]
                 target = relevant_nodes[j]
                 try:
-                    path = nx.shortest_path(self.street_graph, source, target, weight='weight')
-                    path_length = nx.shortest_path_length(self.street_graph, source, target, weight='weight')
+                    path = nx.shortest_path(self.graph, source, target, weight='weight')
+                    path_length = nx.shortest_path_length(self.graph, source, target, weight='weight')
                     shortest_paths[(source, target)] = {
                         'length': path_length,
                         'path' : path
@@ -57,7 +57,7 @@ class MSTCreator:
             if path_info is not None:
                 edges_in_path = [(path_info['path'][k], path_info['path'][k + 1]) for k in
                                  range(len(path_info['path']) - 1)]
-                edge_ids = [self.street_graph.get_edge_data(u, v).get('id') for u, v in edges_in_path]
+                edge_ids = [self.graph.get_edge_data(u, v).get('id') for u, v in edges_in_path]
                 shortest_path_graph.add_edge(source, target, weight=path_info['length'], edge_ids=edge_ids)
                 if self.LOG_PATH:
                     self.log_path(source, target, edge_ids)
@@ -85,12 +85,12 @@ class MSTCreator:
         edge_ids = list(set(edge_ids)) # make every entry unique. No multiples.
         mst_layer.startEditing()
         provider = mst_layer.dataProvider()
-        provider.addAttributes(self.exploded_roads.fields())
+        provider.addAttributes(self.line_layer.fields())
         mst_layer.updateFields()
-        source_features = {DhpUtility.get_value_from_field(self.exploded_roads,
+        source_features = {DhpUtility.get_value_from_field(self.line_layer,
                                                            f,
                                                            "osm_id")
-                           : f for f in self.exploded_roads.getFeatures()}
+                           : f for f in self.line_layer.getFeatures()}
         filtered_features = [source_features[feature_id] for feature_id in edge_ids if feature_id in source_features]
         for feature in filtered_features:
             new_feature = QgsFeature(mst_layer.fields())
@@ -100,3 +100,10 @@ class MSTCreator:
         mst_layer.commitChanges()
         mst_layer.updateExtents()
         QgsProject.instance().addMapLayer(mst_layer)
+
+    # ToDo: For testing
+    @function_timer.timed_function
+    def visualize_subgraph_mst(self, fully_connected_graph, nodes_to_connect):
+        subgraph = fully_connected_graph.subgraph(nodes_to_connect)
+        self.create_mst(subgraph)
+        # self.visualize_mst(subgraph)

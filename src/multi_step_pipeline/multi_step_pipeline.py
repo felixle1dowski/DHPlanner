@@ -1,3 +1,5 @@
+import random
+
 from ..dhc_creation_pipeline import DHCCreationPipeline
 from ..util.logger import Logger
 from ..util.logger import Config
@@ -28,13 +30,14 @@ class MultiStepPipeline(DHCCreationPipeline):
         Logger().info("Starting Preprocessing.")
         preprocessing_result = self.timed_wrapper(self.preprocessing.start)
         Logger().info("Finished Preprocessing.")
-        Logger().info("Starting First Stage Clustering.")
-        self.graph_creator.set_preprocessing_result(preprocessing_result)
-        graph_creation_result = self.graph_creator.start()
-        self.mst_creator.set_graph_creator_result(graph_creation_result)
-        building_to_point_dict = graph_creation_result.building_to_point_dict
-        relevant_nodes = list(building_to_point_dict.values())
-        self.mst_creator.start(relevant_nodes)
+        graph, building_to_point_dict, line_layer = self.graph_creator.start(strategy=Config().get_installation_strategy(),
+                                                                exploded_roads=preprocessing_result.exploded_roads,
+                                                                building_centroids=preprocessing_result.building_centroids)
+        self.mst_creator.set_required_fields(graph, line_layer, list(building_to_point_dict.values()))
+        shortest_paths = self.mst_creator.start()
+        random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
+        # ToDo: testing...
+        self.mst_creator.visualize_subgraph_mst(shortest_paths, random_items)
         Logger().info("Finished MST Creation.")
 
 

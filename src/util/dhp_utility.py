@@ -55,6 +55,7 @@ class DhpUtility:
     def assign_unique_id_custom_id_field(layer, feature, id_field_name):
         new_highest_id = IdWallet().get_new_id(layer, id_field_name)
         DhpUtility.assign_value_to_field(layer, id_field_name, feature, new_highest_id)
+        Logger().debug(f"assigned new id {new_highest_id} to feature {feature.id()}")
         return new_highest_id
 
     @staticmethod
