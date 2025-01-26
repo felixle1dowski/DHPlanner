@@ -9,11 +9,11 @@ from qgis.core import (QgsVectorLayer, QgsField, QgsProject,
 from PyQt5.QtCore import QVariant
 from PyQt5.QtGui import QColor
 
-from ..util import function_timer
 from ..util.logger import Logger
 from ..util.config import Config
 from ..util.dhp_utility import DhpUtility
 from ..util.function_timer import FunctionTimer
+from ..util.not_yet_implemented_exception import NotYetImplementedException
 import numpy as np
 import pandas as pd
 import random
@@ -21,71 +21,140 @@ import matplotlib.pyplot as plt
 
 
 class ClusteringFirstStage:
-
     function_timer = FunctionTimer()
 
-    building_centroids : QgsVectorLayer = None
-    buildings_layer : QgsVectorLayer = None
-    selected_buildings_expression : str = None
-    ready_to_start : bool = False
-    plot_buildings : bool = False
+    adjacency_matrix = None
+    id_labels = None
+    building_centroids: QgsVectorLayer = None
+    buildings_layer: QgsVectorLayer = None
+    distance_measuring_method = ""
+    selected_buildings_expression: str = None
+    ready_to_start: bool = False
+    plot_buildings: bool = False
+
     """Used for further debugging. If True, an image gets generated in the debug folder."""
-    clusters : Dict[int, List[int]] = {}
+    clusters: Dict[int, List[int]] = {}
     """Dictionary for clustered buildings. Get specified by building IDs."""
     CLUSTER_FIELD_NAME = "clusterId"
     SHARED_ID_FIELD_NAME = 'osm_id'
     CLUSTER_RESULTS_ID_COL_NAME = 'id'
     CLUSTER_RESULTS_CLUSTER_COL_NAME = 'cluster'
     CLUSTER_RESULTS_CLUSTER_COL_N = 0
-    EPS = 30
-    MIN_SAMPLES = 2
+    HEAT_DEMAND_FIELD_NAME = "peak_demand"
+    EPS = 50
+    MIN_SAMPLES = 1
 
-    def __init__(self):
-        pass
+    def __init__(self, distance_measuring_method: str):
+        # ToDo: Validate Distance Measuring Method.
+        self.distance_measuring_method = distance_measuring_method
 
-    def set_preprocessing_result(self, building_centroids_layer):
+    def set_required_fields(self, building_centroids_layer,
+                            adjacency_matrix=None, id_labels=None):
         self.building_centroids = building_centroids_layer
         self.buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
+        if adjacency_matrix is not None:
+            self.adjacency_matrix = adjacency_matrix
+        if id_labels is not None:
+            self.id_labels = id_labels
+        if adjacency_matrix is not None and id_labels is None \
+                or adjacency_matrix is None and id_labels is not None:
+            raise Exception("If either an adjacency matrix or a id_to_point_dict are provided,"
+                            "the other also has to be provided.")
         self.ready_to_start = True
 
     def start(self):
         if self.ready_to_start:
             self.selected_buildings_expression = self.prepare_filter_expression()
-            # prepared_data = self.prepare_data_for_clustering()
-            # clusters, features, labels = self.do_clustering(prepared_data)
-            # self.print_results(clusters)
-            distances_list, amount_of_features, osm_ids = self.calculate_distances_between_points()
-            distance_matrix = self.construct_distance_matrix(distances_list, amount_of_features)
-            distance_df = self.construct_distance_matrix_df(distance_matrix, osm_ids)
-            clustering_results = self.do_clustering_with_custom_metric(distance_df)
-            output_layer = self.prepare_output_layer_for_visualization(clustering_results)
-            renderer = self.create_unique_cluster_colors_renderer(clustering_results[self.CLUSTER_RESULTS_CLUSTER_COL_NAME].values,
-                                                       output_layer.geometryType(),
-                                                       self.CLUSTER_FIELD_NAME)
+            cluster_weights = self.calculate_cluster_weights()
+            min_samples = self.calculate_min_samples()
+            clustering_result = None
+            if self.distance_measuring_method == "centroids":
+                data = self.prepare_data_for_clustering(cluster_weights)
+                clustering_result = self.do_clustering(data, min_samples)
+
+            if self.distance_measuring_method == "nearest_point" or self.distance_measuring_method == "custom":
+                if self.distance_measuring_method == "nearest_point":
+                    distances_list, amount_of_features, osm_ids = self.calculate_distances_between_points()
+                    distance_matrix = self.construct_distance_matrix(distances_list, amount_of_features)
+                    distance_df = self.construct_distance_matrix_df(distance_matrix, osm_ids)
+                    cluster_weights_custom = self.map_cluster_weights_to_labels(self.id_labels, cluster_weights)
+
+                elif self.distance_measuring_method == "custom" and self.adjacency_matrix is not None and self.id_labels is not None:
+                    distance_df = self.construct_distance_matrix_df(self.adjacency_matrix, self.id_labels)
+                    cluster_weights_custom = self.map_cluster_weights_to_labels(self.id_labels, cluster_weights)
+
+                else:
+                    raise Exception("Invalid parameters in first stage clustering.")
+
+                clustering_result = self.do_clustering_with_custom_metric(distance_df, min_samples, cluster_weights_custom)
+
+            output_layer = self.prepare_output_layer_for_visualization(clustering_result)
+            renderer = self.create_unique_cluster_colors_renderer(
+                clustering_result[self.CLUSTER_RESULTS_CLUSTER_COL_NAME].values,
+                output_layer.geometryType(),
+                self.CLUSTER_FIELD_NAME)
             self.visualize_clustering_results_by_repainting(output_layer, renderer)
-            result = self.prepare_return(clustering_results)
-            # self.plot_clusters(clusters, features, labels)
-            # self.assign_clusters_to_building_centroids(clusters)
-            # self.visualize_building_cluster_membership(labels)
-            return result
-        else:
-            raise Exception("Not ready to start")
+            results = self.prepare_return(clustering_result)
+            return results
+
+    # def start(self):
+    #     if self.ready_to_start:
+    #         self.selected_buildings_expression = self.prepare_filter_expression()
+    #         # prepared_data = self.prepare_data_for_clustering()
+    #         # clusters, features, labels = self.do_clustering(prepared_data)
+    #         # self.print_results(clusters)
+    #         if self.distance_measuring_method == "centroids":
+    #             data = self.prepare_data_for_clustering()
+    #             clusters, features, labels = self.do_clustering(data)
+    #             self.assign_clusters_to_building_centroids(clusters)
+    #         elif self.distance_measuring_method == "nearest_point":
+    #             pass
+    #         elif self.distance_measuring_method == "custom":
+    #             pass
+    #         else:
+    #             raise NotYetImplementedException(f"distance measuring method {self.distance_measuring_method} is not yet implemented.")
+    #         distances_list, amount_of_features, osm_ids = self.calculate_distances_between_points()
+    #         distance_matrix = self.construct_distance_matrix(distances_list, amount_of_features)
+    #         if self.adjacency_matrix is None and self.id_labels is None:
+    #             distance_df = self.construct_distance_matrix_df(distance_matrix, osm_ids)
+    #         elif self.adjacency_matrix is not None and self.id_labels is not None:
+    #             distance_df = self.construct_distance_matrix_df(self.adjacency_matrix, self.id_labels)
+    #         else:
+    #             raise Exception("Impossible to continue first stage clustering due to wrong combination"
+    #                             "of parameters.")
+    #         clustering_results = self.do_clustering_with_custom_metric(distance_df)
+    #         output_layer = self.prepare_output_layer_for_visualization(clustering_results)
+    #         renderer = self.create_unique_cluster_colors_renderer(
+    #             clustering_results[self.CLUSTER_RESULTS_CLUSTER_COL_NAME].values,
+    #             output_layer.geometryType(),
+    #             self.CLUSTER_FIELD_NAME)
+    #         self.visualize_clustering_results_by_repainting(output_layer, renderer)
+    #         result = self.prepare_return(clustering_results)
+    #         # self.plot_clusters(clusters, features, labels)
+    #         # self.assign_clusters_to_building_centroids(clusters)
+    #         # self.visualize_building_cluster_membership(labels)
+    #         return result
+    #     else:
+    #         raise Exception("Not ready to start")
 
     @function_timer.timed_function
-    def prepare_data_for_clustering(self):
+    def prepare_data_for_clustering(self, weight_dict):
         prepared_data = []
         selected_centroids = self.building_centroids.getFeatures()
         for centroid in selected_centroids:
             xy = centroid.geometry().asPoint()
+            id_ = DhpUtility.get_value_from_field(self.building_centroids, centroid, self.SHARED_ID_FIELD_NAME)
             x = xy.x()
             y = xy.y()
+            weight = weight_dict[id_]
             prepared_data.append({
-                "id" : centroid.id(),
-                "x" : x,
-                "y" : y
+                "id": id_,
+                "x": x,
+                "y": y,
+                "weight": weight
             })
             Logger().debug(f"centroid added in preparation for clustering: "
-                         f"id: {centroid.id()}, x: {x}, y: {y}")
+                           f"id: {id_}, x: {x}, y: {y}, weight: {weight}")
         return prepared_data
 
     @function_timer.timed_function
@@ -111,7 +180,7 @@ class ClusteringFirstStage:
                 distance_entry = {
                     "feature_i_osm_id": feature_i_osm_id,
                     "feature_j_osm_id": feature_j_osm_id,
-                    "distance" : distance
+                    "distance": distance
                 }
                 distances_between_buildings.append(distance_entry)
                 self.log_distances_between_geometries(feature_i, feature_j, distance, self.buildings_layer,
@@ -141,15 +210,6 @@ class ClusteringFirstStage:
         Logger().debug(distance_df)
         return distance_df
 
-    @function_timer.timed_function
-    def do_clustering_with_custom_metric(self, distance_df):
-        db = DBSCAN(eps=self.EPS, min_samples=self.MIN_SAMPLES, metric="precomputed")
-        clusters = db.fit_predict(distance_df.values)
-        labels = distance_df.index
-        columns = [self.CLUSTER_RESULTS_CLUSTER_COL_NAME]
-        cluster_results = pd.DataFrame(clusters, index=labels, columns=columns)
-        Logger().debug(cluster_results)
-        return cluster_results
 
     @function_timer.timed_function
     def prepare_output_layer_for_visualization(self, cluster_results):
@@ -159,7 +219,8 @@ class ClusteringFirstStage:
                 - adds cluster id field to output layer
                 - transfers correct values into cluster id field
         """
-        output_layer = QgsVectorLayer("Polygon?crs=" + self.buildings_layer.crs().authid(), "Clustered Buildings", "memory")
+        output_layer = QgsVectorLayer("Polygon?crs=" + self.buildings_layer.crs().authid(), "Clustered Buildings",
+                                      "memory")
         output_layer_data = output_layer.dataProvider()
         output_layer_data.addAttributes(self.buildings_layer.fields())
         output_layer.updateFields()
@@ -174,7 +235,8 @@ class ClusteringFirstStage:
 
         for index, row in cluster_results.iterrows():
             value = str(row.iloc[self.CLUSTER_RESULTS_CLUSTER_COL_N])
-            DhpUtility.assign_value_to_field_by_id(output_layer, self.SHARED_ID_FIELD_NAME, index, self.CLUSTER_FIELD_NAME, value)
+            DhpUtility.assign_value_to_field_by_id(output_layer, self.SHARED_ID_FIELD_NAME, index,
+                                                   self.CLUSTER_FIELD_NAME, value)
 
         QgsProject.instance().addMapLayer(output_layer)
         return output_layer
@@ -195,17 +257,31 @@ class ClusteringFirstStage:
             Logger().debug(f"distance between Feature: {feature1_id} and Feature: {feature2_id}: {distance}")
 
     @function_timer.timed_function
-    def do_clustering(self, data):
+    def do_clustering(self, data, min_samples, sample_weights):
         ids = [point['id'] for point in data]
+        weights = [point['weight'] for point in data]
         features = np.array([[point['x'], point['y']] for point in data])
 
-        dbscan = DBSCAN(eps=self.EPS, min_samples=self.MIN_SAMPLES)
-        labels = dbscan.fit_predict(features)
+        dbscan = DBSCAN(eps=self.EPS, min_samples=min_samples)
+        clusters = dbscan.fit_predict(features, sample_weight=sample_weights)
+        columns = [self.CLUSTER_RESULTS_CLUSTER_COL_NAME]
+        labels = ids
+        cluster_results = pd.DataFrame(clusters, index=labels, columns=columns)
+        Logger().debug(cluster_results)
+        # clusters = defaultdict(list)
+        # for idx, label in enumerate(clusters):
+        #     clusters[label].append(ids[idx])
+        return cluster_results
 
-        clusters = defaultdict(list)
-        for idx, label in enumerate(labels):
-            clusters[label].append(ids[idx])
-        return clusters, features, labels
+    @function_timer.timed_function
+    def do_clustering_with_custom_metric(self, distance_df, min_samples, sample_weights):
+        db = DBSCAN(eps=self.EPS, min_samples=min_samples, metric="precomputed")
+        clusters = db.fit_predict(distance_df.values, sample_weight=sample_weights)
+        labels = distance_df.index
+        columns = [self.CLUSTER_RESULTS_CLUSTER_COL_NAME]
+        cluster_results = pd.DataFrame(clusters, index=labels, columns=columns)
+        Logger().debug(cluster_results)
+        return cluster_results
 
     @function_timer.timed_function
     def plot_clusters(self, clusters, features, labels):
@@ -214,7 +290,7 @@ class ClusteringFirstStage:
         unique_labels = set(labels)
         colors = plt.cm.Spectral(np.linspace(0, 1, len(unique_labels)))
 
-        plt.figure(figsize=(8,6))
+        plt.figure(figsize=(8, 6))
         for label, color in zip(unique_labels, colors):
             if label == -1:
                 color = "k"
@@ -290,7 +366,7 @@ class ClusteringFirstStage:
         for cluster_id in unique_labels:
             cluster_id = str(cluster_id)
             symbol = QgsSymbol.defaultSymbol(geometry_type)
-            colors = QColor.fromRgb(random.randrange(0,256), random.randrange(0,256), random.randrange(0,256))
+            colors = QColor.fromRgb(random.randrange(0, 256), random.randrange(0, 256), random.randrange(0, 256))
             symbol.setColor(colors)
             category = QgsRendererCategory(cluster_id, symbol, cluster_id)
             categories.append(category)
@@ -312,7 +388,36 @@ class ClusteringFirstStage:
         return_dict = defaultdict(list)
         for building_id, cluster_id in cluster_df.itertuples():
             # filtering out the noise.
-            if cluster_id != "-1":
+            if str(cluster_id) != "-1":
                 return_dict[cluster_id].append(building_id)
+        for cluster_id, building_list in return_dict.items():
+            # Only clusters with more than one building get accepted.
+            # If there's one building that satisfies the clustering requirements by itself
+            # we don't need to construct a heating network for it.
+            if len(building_list) <= 1:
+                return_dict.pop(cluster_id)
         Logger().debug(return_dict)
         return return_dict
+
+    def calculate_cluster_weights(self):
+        weight_dict = {}
+        for centroid in self.building_centroids.getFeatures():
+            heat_demand = DhpUtility.get_value_from_field(self.building_centroids,
+                                                          centroid,
+                                                          self.HEAT_DEMAND_FIELD_NAME)
+            weight_dict[DhpUtility.get_value_from_field(self.building_centroids,
+                                                        centroid,
+                                                        self.SHARED_ID_FIELD_NAME)] = float(heat_demand)
+        Logger().debug(f"Calculated cluster weights: {weight_dict}")
+        return weight_dict
+
+    def calculate_min_samples(self):
+        min_samples = (float(Config().get_heat_capacity()) *
+                       float((Config().get_minimum_heat_capacity_exhaustion_as_decimal())))
+        return int(min_samples)
+
+    def map_cluster_weights_to_labels(self, id_labels, cluster_weights):
+        weights = []
+        for id_ in id_labels:
+            weights.append(cluster_weights[id_])
+        return weights

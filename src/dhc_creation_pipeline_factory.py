@@ -24,7 +24,7 @@ class DHCCreationPipelineFactory:
             raise NotYetImplementedException("one-step solution has not yet been implemented.")
         elif self.method == "multi-step":
             preprocessing = Preprocessing()
-            clustering_first_stage = ClusteringFirstStage()
+            clustering_first_stage = ClusteringFirstStage(Config().get_distance_measuring_method())
             feasible_solution_creator = ClusteringSecondStageFeasibleSolutionCreator()
             clustering_second_stage = ClusteringSecondStage()
             graph_creator = GraphCreator()

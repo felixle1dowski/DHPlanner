@@ -3,65 +3,59 @@ import random
 from ..dhc_creation_pipeline import DHCCreationPipeline
 from ..util.logger import Logger
 from ..util.logger import Config
-from qgis.core import (QgsProject)
 import time
+import networkx as nx
 
 
 class MultiStepPipeline(DHCCreationPipeline):
-
     preprocessing = None
     graph_creator = None
-    mst_creator = None
+    shortest_path_creator = None
     mst_visualizer = None
     clustering_first_stage = None
     clustering_second_stage = None
     feasible_solution_creator = None
 
-    def __init__(self, preprocessor, clustering_first_stage, feasible_solution_creator, clustering_second_stage, graph_creator, mst_creator, mst_visualizer):
+    def __init__(self, preprocessor, clustering_first_stage, feasible_solution_creator, clustering_second_stage,
+                 graph_creator, shortest_path_creator, mst_visualizer):
         self.preprocessing = preprocessor
         self.clustering_first_stage = clustering_first_stage
         self.feasible_solution_creator = feasible_solution_creator
         self.clustering_second_stage = clustering_second_stage
         self.graph_creator = graph_creator
-        self.mst_creator = mst_creator
+        self.shortest_path_creator = shortest_path_creator
         self.mst_visualizer = mst_visualizer
 
     def start(self):
         Logger().info("Starting Preprocessing.")
         preprocessing_result = self.timed_wrapper(self.preprocessing.start)
         Logger().info("Finished Preprocessing.")
-        graph, building_to_point_dict, line_layer = self.graph_creator.start(strategy=Config().get_installation_strategy(),
-                                                                exploded_roads=preprocessing_result.exploded_roads,
-                                                                building_centroids=preprocessing_result.building_centroids)
-        self.mst_creator.set_required_fields(graph, line_layer, list(building_to_point_dict.values()))
-        shortest_paths = self.mst_creator.start()
-        random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
+        graph, building_to_point_dict, line_layer = self.graph_creator.start(
+            strategy=Config().get_installation_strategy(),
+            exploded_roads=preprocessing_result.exploded_roads,
+            building_centroids=preprocessing_result.building_centroids)
+        self.shortest_path_creator.set_required_fields(graph, line_layer, list(building_to_point_dict.values()))
+        shortest_paths = self.shortest_path_creator.start()
+
+        if Config().get_distance_measuring_method() == "custom":
+            # ToDo: Put this into function!
+            adjacency_matrix = nx.adjacency_matrix(shortest_paths).todense()
+            nodes = list(shortest_paths.nodes())
+            # translate nodes
+            translated_nodes = []
+            reverse_translation = dict(zip(building_to_point_dict.values(), building_to_point_dict.keys()))
+            for node in nodes:
+                translated_nodes.append(reverse_translation[node])
+            self.clustering_first_stage.set_required_fields(preprocessing_result.building_centroids,
+                                                            adjacency_matrix,
+                                                            translated_nodes)
+        else:
+            self.clustering_first_stage.set_required_fields(preprocessing_result.building_centroids)
+        self.clustering_first_stage.start()
+
+        # random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
         # ToDo: testing...
-        self.mst_creator.visualize_subgraph_mst(shortest_paths, random_items)
-        Logger().info("Finished MST Creation.")
-
-
-
-
-        # self.clustering_first_stage.set_preprocessing_result(preprocessing_result.building_centroids)
-        # clustering_first_stage_result = self.timed_wrapper(self.clustering_first_stage.start)
-        # Logger().info("Finished First Stage Clustering.")
-        # Logger().info("Starting Second Stage Clustering.")
-        # # ToDo: This is dirty. Change this by creating a shared resources class that holds ressources like this.
-        # buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
-        # self.clustering_second_stage.set_first_stage_result(clustering_first_stage_result,
-        #                                                     buildings_layer,
-        #                                                     preprocessing_result.building_centroids,
-        #                                                     self.feasible_solution_creator)
-        # self.timed_wrapper(self.clustering_second_stage.start)
-        # Logger().info("Finished Second Stage Clustering.")
-
-        # self.graph_creator.set_preprocessing_result(preprocessing_result)
-        # graph_creation_result = self.timed_wrapper(self.graph_creator.start)
-        # Logger().info("Finished Graph Creation.")
-        # Logger().info("Starting MST Creation.")
-        # self.mst_creator.set_graph_creator_result(graph_creation_result)
-        # self.timed_wrapper(self.mst_creator.start)
+        # self.mst_creator.visualize_subgraph_mst(shortest_paths, random_items)
         # Logger().info("Finished MST Creation.")
 
     def timed_wrapper(self, function_call, *args, **kwargs):

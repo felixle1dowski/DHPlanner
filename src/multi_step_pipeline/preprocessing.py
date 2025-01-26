@@ -71,9 +71,9 @@ class Preprocessing:
         Logger().info("Buildings have been preprocessed successfully.")
         self.add_heat_demands_to_building_centroids()
         Logger().info("Building centroids have successfully been adjusted to display heat demands of buildings.")
+        self.delete_centroids_without_heat_demand()
         self.add_peak_demands_to_building_centroids()
         Logger().info("Peak demands have been calculated successfully and added to the buildings centroids.")
-
         result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
         return result
 
@@ -281,3 +281,19 @@ class Preprocessing:
     def q_peak_calculation(epeakm, t, lf):
         result = epeakm / (t * lf)
         return result
+
+    def delete_centroids_without_heat_demand(self):
+        building_centroids = self.buildings_centroids
+        centroid_provider = building_centroids.dataProvider()
+        heat_demand_idx = building_centroids.fields().indexFromName(self.HEAT_DEMAND_COL_NAME)
+        ids_to_delete = []
+        str_ids_to_delete = []
+        for feature in building_centroids.getFeatures():
+            if feature.attributes()[heat_demand_idx] is None:
+                ids_to_delete.append(feature.id())
+                # ToDo: Delete all the osm_id accesses and replace it by a centrally located wallet or similar.
+                str_ids_to_delete.append(DhpUtility.get_value_from_field(building_centroids, feature, "osm_id"))
+        centroid_provider.deleteFeatures(ids_to_delete)
+        building_centroids.commitChanges()
+        Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to not having a corresponding"
+                       f"heat demand.")
