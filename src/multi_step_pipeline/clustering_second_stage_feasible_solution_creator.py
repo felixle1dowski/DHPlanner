@@ -15,6 +15,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
     UNIQUE_ID_FIELD = "osm_id"
 
     MEMBER_LIST_KEY = "member_list"
+    NON_MEMBER_KEY = "non_member_list"
     # ToDo: This has to be put into a config anyway, but sometimes QGIS struggles mightily with underscores...
     CURRENT_CAPACITY_KEY = "current_capacity"
     TOTAL_SUM_OF_DISTANCES_KEY = "total_sum_of_distances"
@@ -32,6 +33,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
         # ToDo: I have to do the cluster_center_dict thingy!!
         distance_ranking_dict = self.create_distance_ranking_dict(cluster_dict, cluster_center_dict, info_layer)
         dict_with_capacity = self.add_capacity_field_to_cluster_dict(distance_ranking_dict, info_layer)
+        dict_with_non_member_list = self.add_non_member_list_to_cluster_dict(distance_ranking_dict)
         feasible_solution = self.swap_cluster_membership_until_solution_feasible(dict_with_capacity,
                                                                                  cluster_center_dict,
                                                                                  info_layer)
@@ -108,6 +110,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                             break
                     if inner_dict[self.CURRENT_CAPACITY_KEY] >= 0:
                         break
+                    self.flag_as_non_member(cluster_dict, cluster_id, candidate)
         return cluster_dict
 
     def swap_cluster_membership(self, cluster_dict, member,
@@ -185,3 +188,13 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
         }
         Logger().debug(f"Total sum of distances per cluster added. Current Dictionary: {new_cluster_dict}")
         return new_cluster_dict
+
+    def flag_as_non_member(self, cluster_dict, cluster_id, candidate):
+        cluster_dict[cluster_id][self.MEMBER_LIST_KEY].remove(candidate)
+        cluster_dict[cluster_id][self.NON_MEMBER_KEY].append(candidate)
+        Logger().debug(f"{candidate} was flagged as non-member. Current non-member list:"
+                       f" {cluster_dict[cluster_id][self.NON_MEMBER_KEY]}")
+
+    def add_non_member_list_to_cluster_dict(self, cluster_dict):
+        for cluster_id, inner_dict in cluster_dict.items():
+            inner_dict[self.NON_MEMBER_KEY] = []

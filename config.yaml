@@ -6,11 +6,15 @@
   # possible strategies:
     # street-following: pipes have to be installed under the streets.
     # greenfield: no rules for pipe installation.
-    # greenfield strategy is not yet implemented.
   installation-strategy: "street-following"
   # possible methods:
     # one-step: method that aims to calculate detailed and accurate results.
     # multi-step: heuristic method that aims to reduce needed computation ressources as much as possible.
+  distance-measuring-method: "custom"
+  # possible methods:
+    # centroids:
+    # nearest_point:
+    # custom:
   method: "multi-step"
   log-level: "debug"
   # absolute path required
@@ -18,7 +22,7 @@
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
 
-  heat-capacity: "1500"
+  heat-capacity: "500"
   # in kW.
 
   minimum-heat-capacity-exhaustion: 40

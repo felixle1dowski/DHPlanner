@@ -390,13 +390,13 @@ class ClusteringFirstStage:
             # filtering out the noise.
             if str(cluster_id) != "-1":
                 return_dict[cluster_id].append(building_id)
-        for cluster_id, building_list in return_dict.items():
+        for cluster_id, building_list in return_dict.copy().items():
             # Only clusters with more than one building get accepted.
             # If there's one building that satisfies the clustering requirements by itself
             # we don't need to construct a heating network for it.
             if len(building_list) <= 1:
                 return_dict.pop(cluster_id)
-        Logger().debug(return_dict)
+        Logger().debug(f"Filtered return dictionary: {return_dict}")
         return return_dict
 
     def calculate_cluster_weights(self):

@@ -15,7 +15,7 @@ class ClusteringSecondStageAdapter():
     FEASIBLE_SOLUTION_KEY = "clusters"
     DEMAND_FIELD_LAYER = "peak_demand"
 
-    def do_brkga(self, cluster_dict, info_layer, eliminate_buildings : bool, number_of_clusters : int):
+    def do_brkga(self, cluster_dict, info_layer, number_of_clusters : int):
         # ToDo: Just add field to cluster dict that represents the brkga solutions.
         # ToDo: For now: Just do the brkga so we can get logs.
         # ToDo: Check if dict has all fields required!
@@ -25,7 +25,7 @@ class ClusteringSecondStageAdapter():
         demands = self.get_demands_of_members_as_dict(members, info_layer)
         feasible_solution = cluster_dict[self.FEASIBLE_SOLUTION_KEY]
         total_distance = cluster_dict[self.TOTAL_DISTANCE_KEY]
-        best_fitness, best_chromosome = brkga_api.do_brkga(eliminate_buildings=eliminate_buildings,
+        best_fitness, best_chromosome = brkga_api.do_brkga(
                                      distance_matrix=distance_matrix,
                                      max_capacity=Config().get_heat_capacity(),
                                      demands=demands,

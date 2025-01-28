@@ -1,6 +1,7 @@
 from turtle import pd
 
 import numpy as np
+from networkx import nx
 
 
 class ClusteringInstance:
@@ -11,16 +12,23 @@ class ClusteringInstance:
 
     # ToDo: Change Constructor api to hand over dataframe instead of distance_matrix and members list.
 
-    def __init__(self, distance_matrix: np.ndarray, max_capacity: float, demands: {str : float}, members: list):
-        self.distance_matrix = distance_matrix
+    def __init__(self, graph: nx.Graph, max_capacity: float, demands: {str: float}, members: list,
+                 id_to_node_translation_dict: dict):
+        self.graph = graph
         self.max_capacity = max_capacity
         self.demands = demands
         self.members = members
+        self.id_to_node_translation_dict = id_to_node_translation_dict
 
-    def get_distance(self, point1, point2):
-        point1_idx = self.members.index(point1)
-        point2_idx = self.members.index(point2)
-        return self.distance_matrix[point1_idx, point2_idx]
+    # ToDo: Delete?
+    def get_distance(self, id1, id2):
+        distance = self.graph[self.id_to_node_translation_dict[id1]][self.id_to_node_translation_dict[id2]]['length']
+        return distance
+
+    def get_subgraph(self, members: list):
+        node_list = [self.id_to_node_translation_dict[member] for member in members]
+        subgraph = self.graph.subgraph(node_list)
+        return subgraph
 
     def get_sorted_distances_to_multiple_points(self, from_point: str, to_group_of_points: list[str]):
         unsorted_result = []
@@ -36,27 +44,27 @@ class ClusteringInstance:
     def get_number_of_nodes(self):
         return len(self.demands)
 
-    def translate_cluster_membership_table(self,
-                                           cluster_membership_table: np.ndarray,
-                                           cluster_centers,
-                                           cluster_members) -> {str: {}}:
-        result_dict = {}
-        rows, cols = np.where(cluster_membership_table == 1)
-        combinations = list(zip(rows, cols))
-        for combination in combinations:
-            member = cluster_members[combination[0]]
-            center = cluster_centers[combination[1]]
-            if member != center:
-                result_dict[self.members[member]] = {
-                    self.IS_CENTER_FIELD : False,
-                    self.CLUSTER_ID_FIELD : self.members[center],
-                }
-            else:
-                result_dict[self.members[member]] = {
-                    self.IS_CENTER_FIELD : True,
-                    self.CLUSTER_ID_FIELD : self.members[center],
-                }
-        return result_dict
+    # def translate_cluster_membership_table(self,
+    #                                        cluster_membership_table: np.ndarray,
+    #                                        cluster_centers,
+    #                                        cluster_members) -> {str: {}}:
+    #     result_dict = {}
+    #     rows, cols = np.where(cluster_membership_table == 1)
+    #     combinations = list(zip(rows, cols))
+    #     for combination in combinations:
+    #         member = cluster_members[combination[0]]
+    #         center = cluster_centers[combination[1]]
+    #         if member != center:
+    #             result_dict[self.members[member]] = {
+    #                 self.IS_CENTER_FIELD: False,
+    #                 self.CLUSTER_ID_FIELD: self.members[center],
+    #             }
+    #         else:
+    #             result_dict[self.members[member]] = {
+    #                 self.IS_CENTER_FIELD: True,
+    #                 self.CLUSTER_ID_FIELD: self.members[center],
+    #             }
+    #     return result_dict
 
     def get_decoded_list_of_ids(self, indexes: list[int]) -> list[str]:
         return_list = []

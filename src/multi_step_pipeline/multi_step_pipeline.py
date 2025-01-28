@@ -51,7 +51,9 @@ class MultiStepPipeline(DHCCreationPipeline):
                                                             translated_nodes)
         else:
             self.clustering_first_stage.set_required_fields(preprocessing_result.building_centroids)
-        self.clustering_first_stage.start()
+        clustering_first_stage_results = self.clustering_first_stage.start()
+
+
 
         # random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
         # ToDo: testing...

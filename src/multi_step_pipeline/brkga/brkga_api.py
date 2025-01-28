@@ -3,7 +3,6 @@ import random
 import numpy as np
 from brkga_mp_ipr.enums import Sense
 
-from . import warm_start
 from ...util.not_yet_implemented_exception import NotYetImplementedException
 from ...util.logger import Logger
 from .clustering_instance import ClusteringInstance
@@ -23,7 +22,7 @@ class BrkgaAPI:
         pass
 
     # ToDo: Validate members and distance matrix. They need to have the same dimensions!
-    def do_brkga(self, eliminate_buildings: bool,
+    def do_brkga(self,
                  distance_matrix: np.ndarray,
                  max_capacity: float,
                  demands: {int: float},
@@ -34,32 +33,26 @@ class BrkgaAPI:
                  total_member_list: list):
         if len(members) != len(distance_matrix):
             raise Exception("members list and distance matrix must be same length")
-        if eliminate_buildings:
-            self.do_brkga_with_elimination()
-        else:
-            best_fitness, best_chromosome = self.do_brkga_without_elimination(distance_matrix,
-                                              max_capacity,
-                                              demands,
-                                              num_clusters,
-                                              members,
-                                              warm_start,
-                                              total_distance,
-                                              total_member_list)
-            return best_fitness, best_chromosome
-        return {}
 
-    def do_brkga_with_elimination(self):
-        raise NotYetImplementedException("Brkga with elimination not yet implemented")
+        best_fitness, best_chromosome = self.do_brkga_(distance_matrix,
+                                                       max_capacity,
+                                                       demands,
+                                                       num_clusters,
+                                                       members,
+                                                       warm_start,
+                                                       total_distance,
+                                                       total_member_list)
+        return best_fitness, best_chromosome
 
-    def do_brkga_without_elimination(self,
-                 distance_matrix: np.ndarray,
-                 max_capacity: float,
-                 demands: {int: float},
-                 num_clusters: int,
-                 members: list,
-                 warm_start: dict,
-                 total_distance: float,
-                 total_member_list: list):
+    def do_brkga_(self,
+                  distance_matrix: np.ndarray,
+                  max_capacity: float,
+                  demands: {int: float},
+                  num_clusters: int,
+                  members: list,
+                  warm_start: dict,
+                  total_distance: float,
+                  total_member_list: list):
         instance = ClusteringInstance(distance_matrix, max_capacity, demands, members)
         decoder = ClusteringDecoder(instance, num_clusters)
         initial_solution = self.encode_warm_start(warm_start, total_member_list)
