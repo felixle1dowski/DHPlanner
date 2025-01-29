@@ -11,7 +11,7 @@ from .brkga import Brkga
 
 class BrkgaAPI:
 
-    NUM_GENERATIONS = 100 # this is low. See: Praseyeto (2015).
+    NUM_GENERATIONS = 200 # this is low. See: Praseyeto (2015).
     SEED = 1
     # ToDo: Set in Config!
 

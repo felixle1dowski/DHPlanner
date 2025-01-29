@@ -71,3 +71,7 @@ class ClusteringInstance:
         for index in indexes:
             return_list.append(self.members[index])
         return return_list
+
+    def get_point_demands(self, id_subset):
+        demands = sum([self.get_point_demand(cluster_member) for cluster_member in id_subset])
+        return demands
