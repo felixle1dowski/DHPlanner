@@ -13,7 +13,7 @@ class Config:
     REQUIRED_FIELDS = ["buildings-layer-name", "roads-layer-name",
                        "selection-layer-name", "heat-demands-layer-name",
                        "installation-strategy",
-                       "log-level", "method", "crs", "distance-measuring-method"]
+                       "log-level", "method", "crs", "distance-measuring-method", "fixed-cost"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
@@ -122,3 +122,6 @@ class Config:
 
     def get_distance_measuring_method(self):
         return self.config.get("distance-measuring-method")
+
+    def get_fixed_cost(self):
+        return float(self.config.get("fixed-cost"))

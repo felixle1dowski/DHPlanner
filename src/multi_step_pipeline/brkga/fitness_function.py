@@ -10,25 +10,28 @@ from ...util.dhp_utility import DhpUtility
 
 class FitnessFunction:
 
-    def __init__(self, instance: ClusteringInstance, buildings_to_points_dict):
+    def __init__(self, instance: ClusteringInstance, id_to_node_translation_dict):
         # ToDo: Also pass dict - id: street-type-multiplicator
         self.instance = instance
-        self.buildings_to_point_dict = buildings_to_points_dict
-        self.points_to_building_dict = {value: key for key, value in buildings_to_points_dict.items()}
+        self.buildings_to_point_dict = id_to_node_translation_dict
+        self.points_to_building_dict = {value: key for key, value in id_to_node_translation_dict.items()}
         self.fixed_cost = Config().get_fixed_cost()
 
     def compute_fitness_for_all(self, cluster_dict):
         fitness_scores = []
         for cluster_center_id, members in cluster_dict.items():
-            fitness = self.compute_fitness(members, cluster_center_id)
-            fitness_scores.append(fitness)
+            if cluster_center_id != "-1":
+                members.append(cluster_center_id)
+                fitness = self.compute_fitness(members,
+                                           cluster_center_id)
+                fitness_scores.append(fitness)
         sum_of_fitness = sum(fitness_scores)
         return sum_of_fitness
 
-    def compute_fitness(self, id_subset, cluster_center_id):
+    def compute_fitness(self, id_subset : list, cluster_center_id):
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
-        tree = self.extract_tree(mst, cluster_center_id)
+        tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
 
         # ToDo: This does not really make sense
         # pipe_cost = self.compute_pipe_cost(tree)
@@ -58,7 +61,8 @@ class FitnessFunction:
             visited.add(node)
             if parent is not None:
                 weight = mst.edges[parent, node]['weight']
-                tree.add_edge(parent, node, weight=weight)
+                edge_ids = mst.edges[parent, node]['edge_ids']
+                tree.add_edge(parent, node, weight=weight, edge_ids=edge_ids)
             for neighbor in mst.neighbors(node):
                 if neighbor not in visited:
                     dfs(neighbor, node)
@@ -69,9 +73,9 @@ class FitnessFunction:
         pipes = []
         for u, v, data in network_tree.edges(data=True):
             pipe = {
-                'id': data['id'],
+                'id': data['edge_ids'],
                 'length': data['weight'],
-                'diameter': self.compute_diameter(data['length'])} # is this all that is needed?
+                'diameter': self.compute_diameter(data['weight'])} # is this all that is needed?
             pipes.append(pipe)
         return pipes
 

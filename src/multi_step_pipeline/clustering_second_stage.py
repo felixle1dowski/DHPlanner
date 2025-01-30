@@ -53,12 +53,16 @@ class ClusteringSecondStage:
     # ToDo: DELETE THIS TOO!
     CLUSTER_FIELD_NAME = "cluster"
 
-    def set_first_stage_result(self, first_stage_cluster_dict,
-                               buildings_layer,
-                               building_centroids_layer,
-                               feasible_solution_creator: IClusteringSecondStageFeasibleSolutionCreator,
-                               graph_translation_dict):
+    def set_required_fields(self,
+                            shortest_path_graph,
+                            first_stage_cluster_dict,
+                            buildings_layer,
+                            building_centroids_layer,
+                            feasible_solution_creator: IClusteringSecondStageFeasibleSolutionCreator,
+                            graph_translation_dict):
+        self.shortest_path_graph = shortest_path_graph
         self.first_stage_cluster_dict = first_stage_cluster_dict
+        # ToDo: Buildings layer not really needed, only for sloppy visualization!
         self.buildings_layer = buildings_layer
         self.building_centroids = building_centroids_layer
         self.ready_to_start = True
@@ -81,9 +85,11 @@ class ClusteringSecondStage:
                                f"solution: {feasible_solution}")
                 clustering_second_stage_adapter = ClusteringSecondStageAdapter()
                 best_fitness, best_chromosome = clustering_second_stage_adapter.do_brkga(
+                    graph=self.shortest_path_graph,
                     cluster_dict=feasible_solution_with_all_members,
                     info_layer=self.building_centroids,
-                    number_of_clusters=number_of_clusters)
+                    number_of_clusters=number_of_clusters,
+                    id_to_node_translation_dict=self.graph_translation_dict)
                 # ToDo: DELETE EVERYTHING THAT FOLLOWS!!!
                 self.selected_buildings_expression = self.prepare_filter_expression()
                 output_layer = self.visualize_best_chromosome(best_chromosome)

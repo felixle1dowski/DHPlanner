@@ -15,7 +15,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
     UNIQUE_ID_FIELD = "osm_id"
 
     MEMBER_LIST_KEY = "member_list"
-    NON_MEMBER_KEY = "non_member_list"
+    NON_MEMBER_KEY = -1
     # ToDo: This has to be put into a config anyway, but sometimes QGIS struggles mightily with underscores...
     CURRENT_CAPACITY_KEY = "current_capacity"
     TOTAL_SUM_OF_DISTANCES_KEY = "total_sum_of_distances"
@@ -33,16 +33,18 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
         # ToDo: I have to do the cluster_center_dict thingy!!
         distance_ranking_dict = self.create_distance_ranking_dict(cluster_dict, cluster_center_dict, info_layer)
         dict_with_capacity = self.add_capacity_field_to_cluster_dict(distance_ranking_dict, info_layer)
-        dict_with_non_member_list = self.add_non_member_list_to_cluster_dict(distance_ranking_dict)
-        feasible_solution = self.swap_cluster_membership_until_solution_feasible(dict_with_capacity,
+        no_member_list = []
+        feasible_solution, no_member_list = self.swap_cluster_membership_until_solution_feasible(dict_with_capacity,
                                                                                  cluster_center_dict,
-                                                                                 info_layer)
+                                                                                 info_layer,
+                                                                                 no_member_list)
         solution_with_cluster_centers = self.add_cluster_center_to_cluster_dict(feasible_solution,
                                                                                 cluster_center_dict,
                                                                                 info_layer)
         solution_with_distances = self.add_sum_of_distances_field_per_cluster(solution_with_cluster_centers, info_layer)
         solution_with_total_distances = self.add_total_sum_of_distances_field(solution_with_distances)
-        return solution_with_total_distances
+        solution_with_non_members = self.add_non_members_to_cluster_dict(solution_with_total_distances, no_member_list)
+        return solution_with_non_members
 
     def create_distance_ranking_dict(self, cluster_dict, cluster_center_dict, info_layer):
         distance_ranking_dict = {}
@@ -88,17 +90,19 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
         return capacity
 
     @function_timer.timed_function
-    def swap_cluster_membership_until_solution_feasible(self, cluster_dict, cluster_center_dict, info_layer):
+    def swap_cluster_membership_until_solution_feasible(self, cluster_dict, cluster_center_dict, info_layer, no_member_list):
         # ToDo: Validate that dict has all the required fields!
         for (cluster_id, inner_dict) in cluster_dict.items():
             if inner_dict[self.CURRENT_CAPACITY_KEY] < 0:
                 Logger().debug(f"Capacity of Cluster {cluster_id} is less than 0."
                                f"Trying to swap cluster memberships until capacity is >= 0.")
-                for candidate in inner_dict[self.MEMBER_LIST_KEY]:
+                for candidate in list(inner_dict[self.MEMBER_LIST_KEY]):
+                    Logger().debug(f"Currently observing {candidate}")
                     cluster_centers_ranked = (
                         self.create_distance_ranking_member_to_cluster_center(candidate,
                                                                               cluster_center_dict,
                                                                               info_layer))
+                    swapped = False
                     for cluster_center_id, distance in cluster_centers_ranked:
                         if cluster_dict[cluster_center_id][self.CURRENT_CAPACITY_KEY] > float(
                                 DhpUtility.get_value_from_feature_by_id_field(info_layer,
@@ -107,11 +111,21 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                                                                               self.DEMAND_FIELD)):
                             self.swap_cluster_membership(cluster_dict, candidate, cluster_id, cluster_center_id,
                                                          info_layer)
+                            swapped = True
                             break
                     if inner_dict[self.CURRENT_CAPACITY_KEY] >= 0:
+                        Logger().debug(f"Current Capacity of Cluster {cluster_id} is greater than 0 now, it is: {inner_dict[self.CURRENT_CAPACITY_KEY]}.")
                         break
-                    self.flag_as_non_member(cluster_dict, cluster_id, candidate)
-        return cluster_dict
+                    if not swapped:
+                        self.flag_as_non_member(cluster_dict, cluster_id, candidate,
+                                                float(DhpUtility.get_value_from_feature_by_id_field(info_layer,
+                                                                                              self.UNIQUE_ID_FIELD,
+                                                                                              candidate,
+                                                                                              self.DEMAND_FIELD)),
+                                                no_member_list)
+                    Logger().debug(f"Current Capacity of Cluster {cluster_id} is {inner_dict[self.CURRENT_CAPACITY_KEY]}.")
+
+        return cluster_dict, no_member_list
 
     def swap_cluster_membership(self, cluster_dict, member,
                                 from_cluster, to_cluster, info_layer):
@@ -189,12 +203,25 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
         Logger().debug(f"Total sum of distances per cluster added. Current Dictionary: {new_cluster_dict}")
         return new_cluster_dict
 
-    def flag_as_non_member(self, cluster_dict, cluster_id, candidate):
-        cluster_dict[cluster_id][self.MEMBER_LIST_KEY].remove(candidate)
-        cluster_dict[cluster_id][self.NON_MEMBER_KEY].append(candidate)
-        Logger().debug(f"{candidate} was flagged as non-member. Current non-member list:"
-                       f" {cluster_dict[cluster_id][self.NON_MEMBER_KEY]}")
+    def flag_as_non_member(self, cluster_dict, cluster_id, member, member_demand, no_member_list):
 
-    def add_non_member_list_to_cluster_dict(self, cluster_dict):
-        for cluster_id, inner_dict in cluster_dict.items():
-            inner_dict[self.NON_MEMBER_KEY] = []
+        if member in cluster_dict[cluster_id][self.MEMBER_LIST_KEY]:
+            cluster_dict[cluster_id][self.MEMBER_LIST_KEY].remove(member)
+            cluster_dict[cluster_id][self.CURRENT_CAPACITY_KEY] += member_demand
+        else:
+            raise Exception(f"Candidate {member} is not in cluster {cluster_id}")
+
+
+        no_member_list.append(member)
+        Logger().debug(f"{member} was flagged as non-member. Current non-member list:"
+                       f" {no_member_list}")
+        return no_member_list
+
+    def add_non_members_to_cluster_dict(self, cluster_dict, no_member_list):
+        cluster_dict[self.CLUSTERS_KEY][self.NON_MEMBER_KEY] = {
+            self.CURRENT_CAPACITY_KEY: 0.0,
+            self.MEMBER_LIST_KEY: no_member_list,
+            self.SUM_OF_DISTANCES_PER_CLUSTER_KEY: 0,
+            self.CLUSTER_CENTER_BUILDING_KEY: "-1"
+        }
+        return cluster_dict

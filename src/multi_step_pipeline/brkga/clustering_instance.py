@@ -22,7 +22,7 @@ class ClusteringInstance:
 
     # ToDo: Delete?
     def get_distance(self, id1, id2):
-        distance = self.graph[self.id_to_node_translation_dict[id1]][self.id_to_node_translation_dict[id2]]['length']
+        distance = self.graph[self.id_to_node_translation_dict[id1]][self.id_to_node_translation_dict[id2]]['weight']
         return distance
 
     def get_subgraph(self, members: list):

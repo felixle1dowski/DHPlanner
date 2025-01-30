@@ -41,7 +41,7 @@ class ClusteringFirstStage:
     CLUSTER_RESULTS_CLUSTER_COL_NAME = 'cluster'
     CLUSTER_RESULTS_CLUSTER_COL_N = 0
     HEAT_DEMAND_FIELD_NAME = "peak_demand"
-    EPS = 50
+    EPS = 200
     MIN_SAMPLES = 1
 
     def __init__(self, distance_measuring_method: str):

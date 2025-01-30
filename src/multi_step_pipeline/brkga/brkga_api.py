@@ -7,11 +7,14 @@ from ...util.not_yet_implemented_exception import NotYetImplementedException
 from ...util.logger import Logger
 from .clustering_instance import ClusteringInstance
 from .clustering_decoder import ClusteringDecoder
+from .fitness_function import FitnessFunction
 from .brkga import Brkga
 
 class BrkgaAPI:
 
-    NUM_GENERATIONS = 200 # this is low. See: Praseyeto (2015).
+    EXCLUDED_KEY = -1
+    MEMBER_LIST_KEY = "member_list"
+    NUM_GENERATIONS = 2 # this is low. See: Praseyeto (2015).
     SEED = 1
     # ToDo: Set in Config!
 
@@ -23,43 +26,45 @@ class BrkgaAPI:
 
     # ToDo: Validate members and distance matrix. They need to have the same dimensions!
     def do_brkga(self,
-                 distance_matrix: np.ndarray,
+                 graph,
                  max_capacity: float,
                  demands: {int: float},
                  num_clusters: int,
                  members: list,
                  warm_start: dict,
                  total_distance: float,
-                 total_member_list: list):
-        if len(members) != len(distance_matrix):
-            raise Exception("members list and distance matrix must be same length")
+                 total_member_list: list,
+                 id_to_node_translation_dict: dict):
 
-        best_fitness, best_chromosome = self.do_brkga_(distance_matrix,
+        best_fitness, best_chromosome = self.do_brkga_(graph,
                                                        max_capacity,
                                                        demands,
                                                        num_clusters,
                                                        members,
                                                        warm_start,
                                                        total_distance,
-                                                       total_member_list)
+                                                       total_member_list,
+                                                       id_to_node_translation_dict)
         return best_fitness, best_chromosome
 
     def do_brkga_(self,
-                  distance_matrix: np.ndarray,
+                  graph,
                   max_capacity: float,
                   demands: {int: float},
                   num_clusters: int,
                   members: list,
                   warm_start: dict,
                   total_distance: float,
-                  total_member_list: list):
-        instance = ClusteringInstance(distance_matrix, max_capacity, demands, members)
-        decoder = ClusteringDecoder(instance, num_clusters)
+                  total_member_list: list,
+                  id_to_node_translation_dict: dict):
+        instance = ClusteringInstance(graph, max_capacity, demands, members, id_to_node_translation_dict)
+        # ToDo: Fitness Function should probably be passed via dependency injection!
+        decoder = ClusteringDecoder(instance, num_clusters, FitnessFunction(instance, id_to_node_translation_dict))
         initial_solution = self.encode_warm_start(warm_start, total_member_list)
         brkga = Brkga(instance=instance,
                       seed=self.SEED,
                       num_generations=self.NUM_GENERATIONS,
-                      sense=Sense.MINIMIZE,
+                      sense=Sense.MAXIMIZE,
                       decoder=decoder,
                       initial_solution=initial_solution)
         best_fitness, best_chromosome = brkga.do_brkga()
@@ -70,12 +75,14 @@ class BrkgaAPI:
         cluster_ids = []
         members = []
         for cluster_id, inner_dict in warm_start.items():
-            cluster_center = inner_dict[self.CLUSTER_CENTER_KEY]
-            cluster_ids.append(cluster_center)
-            for member in inner_dict[self.MEMBER_LIST_KEY]:
-                if member != cluster_center:
-                    members.append(member)
-        id_solution = cluster_ids + members
+            if cluster_id != self.EXCLUDED_KEY:
+                cluster_center = inner_dict[self.CLUSTER_CENTER_KEY]
+                cluster_ids.append(cluster_center)
+                for member in inner_dict[self.MEMBER_LIST_KEY]:
+                    if member != cluster_center:
+                        members.append(member)
+        excluded_members = warm_start[self.EXCLUDED_KEY][self.MEMBER_LIST_KEY]
+        id_solution = cluster_ids + members + excluded_members
         if len(id_solution) != len(total_member_list):
             raise Exception(f"Mismatched length of parameter total_member_list ({len(total_member_list)}) "
                             f"and local variable id_solution ({len(id_solution)})")

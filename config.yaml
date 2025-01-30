@@ -22,7 +22,9 @@
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
 
-  heat-capacity: "500"
+  fixed-cost: "0"
+
+  heat-capacity: "1500"
   # in kW.
 
   minimum-heat-capacity-exhaustion: 40
