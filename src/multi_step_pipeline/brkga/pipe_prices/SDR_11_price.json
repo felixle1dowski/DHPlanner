@@ -1,0 +1,62 @@
+{
+  "20x1,9": {
+    "type": "duo",
+    "outer_diameter": 113,
+    "price": 79.50
+  },
+  "25x2,3": {
+    "type": "duo",
+    "outer_diameter": 113,
+    "price": 79.50
+  },
+  "32x2,9": {
+    "type": "duo",
+    "outer_diameter": 113,
+    "price": 88.7
+  },
+  "40x3,7": {
+    "type": "duo",
+    "outer_diameter": 128,
+    "price": 101.9
+  },
+  "50x4,6": {
+    "type": "duo",
+    "outer_diameter": 164,
+    "price": 149.60
+  },
+  "63x5,8": {
+    "type": "duo",
+    "outer_diameter": 185,
+    "price": 207.8
+  },
+  "75x6,8": {
+    "type": "duo",
+    "outer_diameter": 206,
+    "price": 276.1
+  },
+  "90x8,2": {
+    "type": "uno",
+    "outer_diameter": 338,
+    "price": 340.2
+  },
+  "110x10": {
+    "type": "uno",
+    "outer_diameter": 338,
+    "price": 408.2
+  },
+  "125x11,4": {
+    "type": "uno",
+    "outer_diameter": 380,
+    "price": 534.4
+  },
+  "140x12,7": {
+    "type": "uno",
+    "outer_diameter": 422,
+    "price": 884.4
+  },
+  "160x14,6": {
+    "type": "uno",
+    "outer_diameter": 254,
+    "price": 900
+  }
+}

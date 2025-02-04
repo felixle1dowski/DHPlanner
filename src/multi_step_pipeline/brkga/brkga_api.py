@@ -1,3 +1,4 @@
+import os
 import random
 
 import numpy as np
@@ -9,6 +10,8 @@ from .clustering_instance import ClusteringInstance
 from .clustering_decoder import ClusteringDecoder
 from .fitness_function import FitnessFunction
 from .brkga import Brkga
+from .pipe_diameter_catalogue import PipeDiameterCatalogue
+from .pipe_prices import PipePrices
 
 class BrkgaAPI:
 
@@ -20,6 +23,11 @@ class BrkgaAPI:
 
     MEMBER_LIST_KEY = "member_list"
     CLUSTER_CENTER_KEY = "cluster_center"
+
+    SCRIPT_DIR = os.path.dirname(__file__)
+    CATALOGUE_FOLDER_PATH = os.path.join(SCRIPT_DIR, "./pipe_diameter_catalogues")
+
+    PRICES_JSON_PATH = os.path.join(SCRIPT_DIR, "./pipe_prices/SDR_11_price.json")
 
     def __init__(self):
         pass
@@ -59,7 +67,17 @@ class BrkgaAPI:
                   id_to_node_translation_dict: dict):
         instance = ClusteringInstance(graph, max_capacity, demands, members, id_to_node_translation_dict)
         # ToDo: Fitness Function should probably be passed via dependency injection!
-        decoder = ClusteringDecoder(instance, num_clusters, FitnessFunction(instance, id_to_node_translation_dict))
+
+        catalogue_interpreter = PipeDiameterCatalogue()
+        catalogues = catalogue_interpreter.open_catalogues(self.CATALOGUE_FOLDER_PATH)
+        catalogue_df = catalogue_interpreter.create_dataframe(catalogues)
+
+        pipe_prices = PipePrices.open_prices_json(self.PRICES_JSON_PATH)
+
+        decoder = ClusteringDecoder(instance, num_clusters, FitnessFunction(instance,
+                                                                            id_to_node_translation_dict,
+                                                                            catalogue_df,
+                                                                            pipe_prices))
         initial_solution = self.encode_warm_start(warm_start, total_member_list)
         brkga = Brkga(instance=instance,
                       seed=self.SEED,
