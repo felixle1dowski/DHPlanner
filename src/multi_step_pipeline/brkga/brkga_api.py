@@ -12,6 +12,7 @@ from .fitness_function import FitnessFunction
 from .brkga import Brkga
 from .pipe_diameter_catalogue import PipeDiameterCatalogue
 from .pipe_prices import PipePrices
+from .mass_flow_calculation import MassFlowCalculation
 
 class BrkgaAPI:
 
@@ -23,6 +24,7 @@ class BrkgaAPI:
 
     MEMBER_LIST_KEY = "member_list"
     CLUSTER_CENTER_KEY = "cluster_center"
+    ID_FIELD_NAME = "osm_id"
 
     SCRIPT_DIR = os.path.dirname(__file__)
     CATALOGUE_FOLDER_PATH = os.path.join(SCRIPT_DIR, "./pipe_diameter_catalogues")
@@ -71,13 +73,19 @@ class BrkgaAPI:
         catalogue_interpreter = PipeDiameterCatalogue()
         catalogues = catalogue_interpreter.open_catalogues(self.CATALOGUE_FOLDER_PATH)
         catalogue_df = catalogue_interpreter.create_dataframe(catalogues)
+        Logger().debug(f"catalogue df was created: {catalogue_df}")
 
         pipe_prices = PipePrices.open_prices_json(self.PRICES_JSON_PATH)
+        mass_flow_calculation = MassFlowCalculation()
+        mass_flow_dict = mass_flow_calculation.calculate_mass_flows(demands)
+
+        Logger().debug(f"mass flow dict was created: {mass_flow_dict}")
 
         decoder = ClusteringDecoder(instance, num_clusters, FitnessFunction(instance,
                                                                             id_to_node_translation_dict,
                                                                             catalogue_df,
-                                                                            pipe_prices))
+                                                                            pipe_prices,
+                                                                            mass_flow_dict))
         initial_solution = self.encode_warm_start(warm_start, total_member_list)
         brkga = Brkga(instance=instance,
                       seed=self.SEED,

@@ -16,6 +16,8 @@ class PipeDiameterCatalogue:
     MASS_FLOW_DATA_COL = 0
     PIPE_DATA_COLS = [6, 8, 10, 12, 14, 16]
 
+    MASS_FLOW_COL_NAME = "Volumenstrom"
+
     CORRESPONDING_DATA_INDEX = {
          0 : 0,
         -6 : 6,
@@ -47,6 +49,7 @@ class PipeDiameterCatalogue:
         for line in catalogue.readlines():
             elements = line.split(" ")
             elements = [element.replace('\n', '') for element in elements]
+            elements = [element.replace(',', '.') for element in elements]
             processed_catalogue.append(elements)
         return processed_catalogue
 
@@ -77,3 +80,6 @@ class PipeDiameterCatalogue:
     def create_dataframe(self, catalogues):
         list_of_dicts = self.prepare_for_dataframe_creation(catalogues)
         df = pd.DataFrame(list_of_dicts)
+        df = df.astype(float)
+        df = df.sort_values(by=self.MASS_FLOW_COL_NAME)
+        return df
