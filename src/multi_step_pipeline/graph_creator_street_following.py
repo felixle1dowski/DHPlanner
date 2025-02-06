@@ -138,8 +138,7 @@ class GraphCreatorStreetFollowing:
                 end_point = end_point_already_added
                 Logger().debug(f'ending point of road_node with id {road.id()} was already added')
 
-            weight_idx = road.fieldNameIndex('length')
-            weight = road.attributes()[weight_idx]
+            weight = self.calculate_effective_weight(road)
             osm_id_idx = road.fieldNameIndex('osm_id')
             id_ = road.attributes()[osm_id_idx]
             edges.append(GraphCreatorStreetFollowing.GraphEdge(start_point, end_point, weight, id_))
@@ -393,3 +392,13 @@ class GraphCreatorStreetFollowing:
                                                                              centroid,
                                                                              "osm_id"))
             roads_provider.addFeature(feature)
+
+    def calculate_effective_weight(self, road_feature):
+        # ToDo: No magic strings! Put them in another class that synchronizes the strings.
+        length = DhpUtility.get_value_from_field(self.exploded_roads, road_feature, 'length')
+        if length == 0.0:
+            return 0
+        fclass = DhpUtility.get_value_from_field(self.exploded_roads, road_feature, 'fclass')
+        multiplicator = Config().get_specific_street_type_multiplier(fclass)
+        return length * multiplicator
+

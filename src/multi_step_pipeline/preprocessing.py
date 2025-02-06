@@ -224,6 +224,7 @@ class Preprocessing:
         building_centroids = self.buildings_centroids
         building_centroids.startEditing()
         DhpUtility.create_new_field(building_centroids, self.INDIVIDUAL_HEAT_DEMAND_COL_NAME, QVariant.String)
+        insulation_factor = float(1 - (Config().get_insulation_factor() / 100))
         heat_demands = self.heating_demand_layer
         selected_heat_demands_list = list(self.heating_demand_layer.selectedFeatures())
         if not selected_heat_demands_list:
@@ -240,7 +241,7 @@ class Preprocessing:
                     multiple_check = True
                     heat_demand_combined = heat_demand_feature[f"{self.HEAT_DEMAND_COL_NAME}"]
                     n_buildings = heat_demand_feature[f"{self.HEAT_DEMAND_N_BUILDINGS_COL_NAME}"]
-                    heat_demand_individual = str(float(heat_demand_combined) / float(n_buildings))
+                    heat_demand_individual = str((float(heat_demand_combined) / float(n_buildings)) * insulation_factor)
                     DhpUtility.assign_value_to_field(building_centroids, self.INDIVIDUAL_HEAT_DEMAND_COL_NAME,
                                                      building_centroid, heat_demand_individual)
                     building_centroids.updateFeature(building_centroid)

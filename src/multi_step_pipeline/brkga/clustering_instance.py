@@ -9,16 +9,18 @@ class ClusteringInstance:
 
     IS_CENTER_FIELD = "is_center"
     CLUSTER_ID_FIELD = "cluster_id"
+    PIVOT_STRING_SINGLE = "pivot_members_end"
 
     # ToDo: Change Constructor api to hand over dataframe instead of distance_matrix and members list.
 
     def __init__(self, graph: nx.Graph, max_capacity: float, demands: {str: float}, members: list,
-                 id_to_node_translation_dict: dict):
+                 id_to_node_translation_dict: dict, pivot_element="none"):
         self.graph = graph
         self.max_capacity = max_capacity
         self.demands = demands
         self.members = members
         self.id_to_node_translation_dict = id_to_node_translation_dict
+        self.pivot_element = pivot_element
 
     # ToDo: Delete?
     def get_distance(self, id1, id2):
@@ -39,10 +41,16 @@ class ClusteringInstance:
         return sorted_result
 
     def get_point_demand(self, point: str) -> float:
-        return float(self.demands[point])
+        if not point.startswith("pivot"):
+            return float(self.demands[point])
 
     def get_number_of_nodes(self):
-        return len(self.demands)
+        number_of_nodes = len(self.demands)
+        if self.pivot_element == "single":
+            number_of_nodes += 1
+        elif self.pivot_element == "double":
+            number_of_nodes += 2
+        return number_of_nodes
 
     # def translate_cluster_membership_table(self,
     #                                        cluster_membership_table: np.ndarray,

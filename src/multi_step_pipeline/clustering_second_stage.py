@@ -89,7 +89,8 @@ class ClusteringSecondStage:
                     cluster_dict=feasible_solution_with_all_members,
                     info_layer=self.building_centroids,
                     number_of_clusters=number_of_clusters,
-                    id_to_node_translation_dict=self.graph_translation_dict)
+                    id_to_node_translation_dict=self.graph_translation_dict,
+                    pivot_element=Config().get_pivot_strategy()) # ToDo: Do this here or in orchestrator?
                 # ToDo: DELETE EVERYTHING THAT FOLLOWS!!!
                 self.selected_buildings_expression = self.prepare_filter_expression()
                 output_layer = self.visualize_best_chromosome(best_chromosome)
@@ -100,7 +101,7 @@ class ClusteringSecondStage:
                 self.visualize_clustering_results_by_repainting(output_layer, renderer)
                 # Except this maybe.
                 best_chromosome_with_capacities = self.calculate_used_capacity(best_chromosome, self.building_centroids)
-                Logger().debug(f"BRKGA Solution: {best_chromosome_with_capacities}")
+                Logger().info(f"BRKGA Solution: {best_chromosome_with_capacities}")
 
     def generate_temporary_clustering_solution(self, cluster_id, cluster_members):
         member_features_iterator = DhpUtility.get_features_by_id_field(self.building_centroids,

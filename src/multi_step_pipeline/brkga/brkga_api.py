@@ -22,9 +22,9 @@ class BrkgaAPI:
     SEED = 1
     # ToDo: Set in Config!
 
-    MEMBER_LIST_KEY = "member_list"
     CLUSTER_CENTER_KEY = "cluster_center"
     ID_FIELD_NAME = "osm_id"
+    PIVOT_STRING_SINGLE = "pivot_members_end"
 
     SCRIPT_DIR = os.path.dirname(__file__)
     CATALOGUE_FOLDER_PATH = os.path.join(SCRIPT_DIR, "./pipe_diameter_catalogues")
@@ -44,7 +44,8 @@ class BrkgaAPI:
                  warm_start: dict,
                  total_distance: float,
                  total_member_list: list,
-                 id_to_node_translation_dict: dict):
+                 id_to_node_translation_dict: dict,
+                 pivot_element="none"):
 
         best_fitness, best_chromosome = self.do_brkga_(graph,
                                                        max_capacity,
@@ -54,7 +55,8 @@ class BrkgaAPI:
                                                        warm_start,
                                                        total_distance,
                                                        total_member_list,
-                                                       id_to_node_translation_dict)
+                                                       id_to_node_translation_dict,
+                                                       pivot_element)
         return best_fitness, best_chromosome
 
     def do_brkga_(self,
@@ -66,8 +68,16 @@ class BrkgaAPI:
                   warm_start: dict,
                   total_distance: float,
                   total_member_list: list,
-                  id_to_node_translation_dict: dict):
-        instance = ClusteringInstance(graph, max_capacity, demands, members, id_to_node_translation_dict)
+                  id_to_node_translation_dict: dict,
+                  pivot_element="none"):
+        if pivot_element not in ["none", "single", "double"]:
+            raise ValueError(f"pivot_element must be 'none', 'single', or 'double'. Is: {pivot_element}")
+        if pivot_element == "single":
+            total_member_list.append("pivot_members_end")
+        elif pivot_element == "double":
+            total_member_list.append("pivot_cluster_centers_end")
+            total_member_list.append("pivot_members_end")
+        instance = ClusteringInstance(graph, max_capacity, demands, members, id_to_node_translation_dict, pivot_element)
         # ToDo: Fitness Function should probably be passed via dependency injection!
 
         catalogue_interpreter = PipeDiameterCatalogue()
@@ -85,8 +95,8 @@ class BrkgaAPI:
                                                                             id_to_node_translation_dict,
                                                                             catalogue_df,
                                                                             pipe_prices,
-                                                                            mass_flow_dict))
-        initial_solution = self.encode_warm_start(warm_start, total_member_list)
+                                                                            mass_flow_dict), pivot_element)
+        initial_solution = self.encode_warm_start(warm_start, total_member_list, pivot_element)
         brkga = Brkga(instance=instance,
                       seed=self.SEED,
                       num_generations=self.NUM_GENERATIONS,
@@ -96,7 +106,7 @@ class BrkgaAPI:
         best_fitness, best_chromosome = brkga.do_brkga()
         return best_fitness, best_chromosome
 
-    def encode_warm_start(self, warm_start, total_member_list : list):
+    def encode_warm_start(self, warm_start, total_member_list : list, pivot_element="none"):
         random.seed(self.SEED)
         cluster_ids = []
         members = []
@@ -108,7 +118,10 @@ class BrkgaAPI:
                     if member != cluster_center:
                         members.append(member)
         excluded_members = warm_start[self.EXCLUDED_KEY][self.MEMBER_LIST_KEY]
-        id_solution = cluster_ids + members + excluded_members
+        if pivot_element == "single":
+            id_solution = cluster_ids + members + [self.PIVOT_STRING_SINGLE] + excluded_members
+        else:
+            id_solution = cluster_ids + members + excluded_members
         if len(id_solution) != len(total_member_list):
             raise Exception(f"Mismatched length of parameter total_member_list ({len(total_member_list)}) "
                             f"and local variable id_solution ({len(id_solution)})")

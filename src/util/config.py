@@ -12,8 +12,8 @@ class Config:
 
     REQUIRED_FIELDS = ["buildings-layer-name", "roads-layer-name",
                        "selection-layer-name", "heat-demands-layer-name",
-                       "installation-strategy",
-                       "log-level", "method", "crs", "distance-measuring-method", "fixed-cost"]
+                       "installation-strategy", "street-type-multipliers", "insulation-factor",
+                       "log-level", "method", "crs", "distance-measuring-method", "fixed-cost", "pivot-strategy"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
@@ -58,6 +58,9 @@ class Config:
         # buildings_file_path = data_folder_path / self.config.get("buildings-file-name")
         # if not buildings_file_path.is_file():
         #     raise ConfigException(f"Buildings File {buildings_file_path} is not valid.")
+        if self.config.get("insulation-factor") < 0:
+            raise ConfigException(f"Insulation factor is not valid. Needs to be greater than or equal to 0. "
+                                  f"but is: {self.config.get('insulation-factor')}")
 
     def get_selection_layer_name(self):
         return self.config.get("selection-layer-name")
@@ -125,3 +128,15 @@ class Config:
 
     def get_fixed_cost(self):
         return float(self.config.get("fixed-cost"))
+
+    def get_pivot_strategy(self):
+        return self.config.get("pivot-strategy")
+
+    def get_street_type_multipliers(self):
+        return self.config.get("street-type-multipliers")
+
+    def get_specific_street_type_multiplier(self, fclass):
+        return self.config.get("street-type-multipliers")[fclass]
+
+    def get_insulation_factor(self):
+        return self.config.get("insulation-factor")
