@@ -9,30 +9,33 @@
   installation-strategy: "street-following"
   # possible methods:
     # one-step: method that aims to calculate detailed and accurate results.
-    # multi-step: heuristic method that aims to reduce needed computation ressources as much as possible.
+    # multi-step: heuristic method that aims to reduce needed computation resources as much as possible.
   distance-measuring-method: "custom"
   # possible methods:
     # centroids:
     # nearest_point:
     # custom:
   method: "multi-step"
-  log-level: "info"
+  log-level: "debug"
   roads-file-name: "roads.shp"
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
+  save-graph: "False"
+  load-graph: "True"
+  graph-file-name: "saved_graph.json"
 
   # available strategies: none and single
   pivot-strategy: "single"
 
   fixed-cost: 600000 # ToDo: Check that there's a value here! It has to be above 0!!
 
-  heat-capacity: 1500
+  heat-capacity: 1500 # 250 kW für Analyse!
   # in kW.
 
   insulation-factor: 0
   # insulation decreases heating demand by the specified percentage!
 
-  minimum-heat-capacity-exhaustion: 40
+  minimum-heat-capacity-exhaustion: 40 # Analyse: kleinste mögliche Wärmequelle
   # in percent.
 
   excluded-road-fclasses:

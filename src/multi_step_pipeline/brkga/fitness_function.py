@@ -16,8 +16,6 @@ class FitnessFunction:
     MASS_FLOW_COL_NAME = "Volumenstrom"
     PRESSURE_LOSS_THRESHOLD = 250
 
-    PENALTY = -10_000_000
-
     def __init__(self, instance: ClusteringInstance, id_to_node_translation_dict, pipe_diameter_catalogue, pipe_prices, mass_flow_dict):
         # ToDo: Also pass dict - id: street-type-multiplicator
         self.instance = instance

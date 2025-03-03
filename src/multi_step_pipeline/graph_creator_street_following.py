@@ -350,6 +350,7 @@ class GraphCreatorStreetFollowing:
                 roads_provider.addFeature(feature)
                 iteration += 1
             DhpUtility.delete_features_custom_id(roads, "osm_id", road_id)
+        Logger().debug("Added all access points to road graph.")
         roads.commitChanges()
 
     def add_ap_lines_to_roads(self, ap_layer):
@@ -392,6 +393,7 @@ class GraphCreatorStreetFollowing:
                                                                              centroid,
                                                                              "osm_id"))
             roads_provider.addFeature(feature)
+        Logger().debug("Added all access points lines to the road graph.")
 
     def calculate_effective_weight(self, road_feature):
         # ToDo: No magic strings! Put them in another class that synchronizes the strings.

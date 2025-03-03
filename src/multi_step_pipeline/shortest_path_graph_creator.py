@@ -4,7 +4,10 @@ from ..util import function_timer
 from ..util.logger import Logger
 from ..util.dhp_utility import DhpUtility
 from ..util.function_timer import FunctionTimer
-from qgis.core import QgsCoordinateReferenceSystem, QgsVectorLayer, QgsFeature, QgsProject
+from ..util.config import Config
+from qgis.core import QgsCoordinateReferenceSystem, QgsVectorLayer, QgsFeature, QgsProject, QgsPointXY
+from time import gmtime, strftime
+import json
 
 
 class ShortestPathGraphCreator:
@@ -14,7 +17,7 @@ class ShortestPathGraphCreator:
     building_centroids = None
     line_layer = None
     access_point_lines = None
-    LOG_PATH = False
+    LOG_PATH = True
     DESIRED_CRS = QgsCoordinateReferenceSystem('EPSG:4839')
     function_timer = FunctionTimer()
 
@@ -30,10 +33,59 @@ class ShortestPathGraphCreator:
 
     @function_timer.timed_function
     def start(self):
-        shortest_path_graph = self.construct_shortest_paths_graph(self.relevant_nodes)
+        if not Config().get_load_graph():
+            shortest_path_graph = self.construct_shortest_paths_graph(self.relevant_nodes)
+            if Config().get_save_graph():
+                serialized_graph = self.serialize_graph(shortest_path_graph)
+                file_name = Config().get_saved_graph_path()
+                with open(file_name, "w") as f:
+                    json.dump(serialized_graph, f, indent=2)
+                Logger().info("succesfully saved shortest path graph!")
+        else:
+            with open(Config().get_saved_graph_path(), "r") as f:
+                serialized_graph = json.load(f)
+                shortest_path_graph = self.deserialize_graph(serialized_graph)
+                Logger().info("successfully loaded shortest path graph from file system.")
         mst = self.create_mst(shortest_path_graph)
         self.visualize_mst(mst)
         return shortest_path_graph
+
+    def serialize_point_xy(self, point):
+        if type(point).__name__ == "QgsPointXY":
+            return {"x": point.x(), "y": point.y()}
+        return point
+
+    def deserialize_point_xy(self, data):
+        if isinstance(data, dict) and "x" in data and "y" in data:
+            return QgsPointXY(data["x"], data["y"])
+        return data
+
+    def serialize_graph(self, graph):
+        serialized_graph = {
+            "nodes": [],
+            "edges": []
+        }
+        for node, attribute in graph.nodes(data=True):
+            serialized_graph["nodes"].append(self.serialize_point_xy(node))
+
+        for u, v, attributes in graph.edges(data=True):
+            serialized_edge = {"source": self.serialize_point_xy(u), "target": self.serialize_point_xy(v)}
+            for key, value in attributes.items():
+                serialized_edge[key] = self.serialize_point_xy(value)
+            serialized_graph["edges"].append(serialized_edge)
+        return serialized_graph
+
+    def deserialize_graph(self, serialized_graph):
+        graph = nx.Graph()
+        for node_data in serialized_graph["nodes"]:
+            deserialized_point = self.deserialize_point_xy(node_data)
+            graph.add_node(deserialized_point)
+        for edge_data in serialized_graph["edges"]:
+            source = self.deserialize_point_xy(edge_data.pop("source"))
+            target = self.deserialize_point_xy(edge_data.pop("target"))
+            attributes = {key: self.deserialize_point_xy(value) for key, value in edge_data.items()}
+            graph.add_edge(source, target, **attributes)
+        return graph
 
     @function_timer.timed_function
     def construct_shortest_paths_graph(self, relevant_nodes):
@@ -43,6 +95,7 @@ class ShortestPathGraphCreator:
             for j in range(i + 1, len(relevant_nodes)):
                 source = relevant_nodes[i]
                 target = relevant_nodes[j]
+                Logger().debug(f"finding the shortest path from {source} to {target}")
                 try:
                     path = nx.shortest_path(self.graph, source, target, weight='weight')
                     path_length = nx.shortest_path_length(self.graph, source, target, weight='weight')

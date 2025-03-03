@@ -13,11 +13,13 @@ class Config:
     REQUIRED_FIELDS = ["buildings-layer-name", "roads-layer-name",
                        "selection-layer-name", "heat-demands-layer-name",
                        "installation-strategy", "street-type-multipliers", "insulation-factor",
-                       "log-level", "method", "crs", "distance-measuring-method", "fixed-cost", "pivot-strategy"]
+                       "log-level", "method", "crs", "distance-measuring-method", "fixed-cost", "pivot-strategy",
+                       "save-graph", "load-graph", "graph-file-name"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
     DEBUG_FOLDER = os.path.join(SCRIPT_DIR, "../../debug/")
+    SAVED_GRAPHS_FOLDER = os.path.join(SCRIPT_DIR, "../../saved_graphs/")
     _instance = None
     config = None
 
@@ -61,6 +63,9 @@ class Config:
         if self.config.get("insulation-factor") < 0:
             raise ConfigException(f"Insulation factor is not valid. Needs to be greater than or equal to 0. "
                                   f"but is: {self.config.get('insulation-factor')}")
+        if self.config.get("save-graph") not in ["True", "False"]:
+            raise ConfigException(f"Invalid entry for save-graph! has to be 'True' or 'False' is "
+                                  f"{self.config.get('save-graph')}")
 
     def get_selection_layer_name(self):
         return self.config.get("selection-layer-name")
@@ -140,3 +145,16 @@ class Config:
 
     def get_insulation_factor(self):
         return self.config.get("insulation-factor")
+
+    def get_saved_graphs_folder(self):
+        return self.SAVED_GRAPHS_FOLDER
+
+    def get_saved_graph_path(self):
+        return os.path.join(self.get_saved_graphs_folder(), self.config.get("graph-file-name"))
+
+    def get_save_graph(self):
+        return self.config.get("save-graph").lower() == "true"
+
+    def get_load_graph(self):
+        return self.config.get("load-graph").lower() == "true"
+
