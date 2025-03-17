@@ -210,6 +210,8 @@ class DhpUtility:
         if len(feature_list) > 1:
             raise Exception(f"Multiple features found for id {id}."
                             f"Ids in id field may not be unique.")
+        if len(feature_list) == 0:
+            return None
         return feature_list[0]
 
     @staticmethod

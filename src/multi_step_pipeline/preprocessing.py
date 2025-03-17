@@ -4,7 +4,7 @@ from ..util.dhp_utility import DhpUtility
 from ..util.config import Config
 from qgis.core import (QgsProject, QgsSpatialIndex, QgsFeatureRequest, QgsVectorLayer,
                        QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-                       QgsField, QgsFeature, QgsProcessingFeatureSourceDefinition)
+                       QgsField, QgsFeature, QgsProcessingFeatureSourceDefinition, QgsWkbTypes)
 from qgis import processing
 from ..util.logger import Logger
 from .preprocessing_result import PreprocessingResult
@@ -29,6 +29,7 @@ class Preprocessing:
     INDIVIDUAL_HEAT_DEMAND_COL_NAME = "individual_heat_demand"
     JANUARY_CONSUMPTION_COL_NAME = "jan_demand"
     PEAK_DEMAND_COL_NAME = "peak_demand"
+    BUILDINGS_ID_FIELD_NAME = "osm_id"
     COUNT_HOURS_IN_PEAK_MONTH = 31 * 24 # for January
     PEAK_MONTH_HEATING_DEMAND_PCT = 0.16 # for January - Jebamalai et al. (2019)
     MONTHS_IN_YEAR = 12
@@ -229,27 +230,65 @@ class Preprocessing:
         selected_heat_demands_list = list(self.heating_demand_layer.selectedFeatures())
         if not selected_heat_demands_list:
             raise Exception(f"No features selected in {self.heating_demand_layer.name()}.")
-        spatial_index = QgsSpatialIndex(heat_demands)
-        building_centroids_features = building_centroids.getFeatures()
-        for building_centroid in building_centroids_features:
-            point_geom = building_centroid.geometry()
-            heat_demand_id = spatial_index.intersects(point_geom.boundingBox())
-            heat_demand_feature_iterator = heat_demands.getFeatures(heat_demand_id)
+        centroids_area_dict = self.infer_building_areas_in_heat_demand_layer(selected_heat_demands_list,
+                                                                                building_centroids)
+        heat_spatial_index = QgsSpatialIndex(heat_demands.getFeatures())
+        for centroid_feature, area_share in centroids_area_dict.items():
+            point_geom = centroid_feature.geometry()
+            heat_demand_ids = heat_spatial_index.intersects(point_geom.boundingBox())
+            heat_demand_feature_iterator = heat_demands.getFeatures(heat_demand_ids)
             multiple_check = False
             for heat_demand_feature in heat_demand_feature_iterator:
-                if heat_demand_feature.geometry().contains(point_geom) and not multiple_check:
+                if heat_demand_feature.geometry().intersects(point_geom) and not multiple_check:
                     multiple_check = True
                     heat_demand_combined = heat_demand_feature[f"{self.HEAT_DEMAND_COL_NAME}"]
-                    n_buildings = heat_demand_feature[f"{self.HEAT_DEMAND_N_BUILDINGS_COL_NAME}"]
-                    heat_demand_individual = str((float(heat_demand_combined) / float(n_buildings)) * insulation_factor)
+                    heat_demand_individual = str((float(heat_demand_combined) * area_share * insulation_factor))
+                    Logger().debug(f"centroid {DhpUtility.get_value_from_field(building_centroids, centroid_feature, self.BUILDINGS_ID_FIELD_NAME)} "
+                                   f"has an area share of {area_share}. The summed heating demand is {DhpUtility.get_value_from_field(heat_demands, heat_demand_feature, self.HEAT_DEMAND_COL_NAME)} "
+                                   f"and thus an individual heat demand of {heat_demand_individual}")
                     DhpUtility.assign_value_to_field(building_centroids, self.INDIVIDUAL_HEAT_DEMAND_COL_NAME,
-                                                     building_centroid, heat_demand_individual)
-                    building_centroids.updateFeature(building_centroid)
+                                                     centroid_feature, heat_demand_individual)
+                    building_centroids.updateFeature(centroid_feature)
                 elif heat_demand_feature.geometry().contains(point_geom) and multiple_check:
-                    building_centroid_id = building_centroid.id()
-                    raise Exception(f"Multiple heat demand geometries for building centroid with id {building_centroid_id} found.")
+                    building_centroid_id = centroid_feature.id()
+                    raise Exception(
+                        f"Multiple heat demand geometries for building centroid with id {building_centroid_id} found.")
         building_centroids.commitChanges()
-        
+
+    def infer_building_areas_in_heat_demand_layer(self, selected_heat_demands_list, building_centroids):
+        buildings_spatial_index = QgsSpatialIndex(self.buildings_layer.getFeatures())
+        result_dict = {}
+        for heat_demand in selected_heat_demands_list:
+            sum_of_area = 0
+            id_area_dict = {}
+            heat_demand_geometry = heat_demand.geometry()
+            if heat_demand_geometry.isGeosValid() and heat_demand_geometry.type() == QgsWkbTypes.PolygonGeometry:
+                intersecting_buildings = buildings_spatial_index.intersects(heat_demand_geometry.boundingBox())
+                for building in DhpUtility.convert_iterator_to_list(
+                        self.buildings_layer.getFeatures(intersecting_buildings)):
+                    if building.geometry().intersects(heat_demand_geometry):
+                        area = building.geometry().area()
+                        sum_of_area += area
+                        id_area_dict[DhpUtility.get_value_from_field(self.buildings_layer, building,
+                                                                     self.BUILDINGS_ID_FIELD_NAME)] = area
+                        Logger().debug(f"heat demand id: {heat_demand.id()} "
+                                       f"Building area for building "
+                                       f"{DhpUtility.get_value_from_field(self.buildings_layer, building, self.BUILDINGS_ID_FIELD_NAME)}: {area}")
+            else:
+                raise Exception(f"A selected heat demand is of the wrong type. Needed: "
+                                f"Polygons. Gotten: {heat_demand_geometry.type()}, id of feature: {heat_demand.id()}")
+            for building_id, area in id_area_dict.items():
+                part_of_area_sum = area / sum_of_area
+                corresponding_centroid = DhpUtility.get_feature_by_id_field(building_centroids,
+                                                                            self.BUILDINGS_ID_FIELD_NAME,
+                                                                            building_id)
+                if corresponding_centroid is not None:
+                    result_dict[corresponding_centroid] = part_of_area_sum
+        logging_dict = {}
+        for centroid, area in result_dict.items():
+            logging_dict[DhpUtility.get_value_from_field(self.buildings_centroids, centroid, self.BUILDINGS_ID_FIELD_NAME)] = area
+        Logger().debug(logging_dict)
+        return result_dict
 
     def add_peak_demands_to_building_centroids(self):
         """
@@ -298,3 +337,4 @@ class Preprocessing:
         building_centroids.commitChanges()
         Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to not having a corresponding"
                        f"heat demand.")
+
