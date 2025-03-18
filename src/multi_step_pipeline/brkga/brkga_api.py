@@ -86,16 +86,11 @@ class BrkgaAPI:
         Logger().debug(f"catalogue df was created: {catalogue_df}")
 
         pipe_prices = PipePrices.open_prices_json(self.PRICES_JSON_PATH)
-        mass_flow_calculation = MassFlowCalculation()
-        mass_flow_dict = mass_flow_calculation.calculate_mass_flows(demands)
-
-        Logger().debug(f"mass flow dict was created: {mass_flow_dict}")
 
         decoder = ClusteringDecoder(instance, num_clusters, FitnessFunction(instance,
                                                                             id_to_node_translation_dict,
                                                                             catalogue_df,
-                                                                            pipe_prices,
-                                                                            mass_flow_dict), pivot_element)
+                                                                            pipe_prices), pivot_element)
         initial_solution = self.encode_warm_start(warm_start, total_member_list, pivot_element)
         brkga = Brkga(instance=instance,
                       seed=self.SEED,

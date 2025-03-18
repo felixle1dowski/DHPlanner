@@ -61,7 +61,7 @@ class MultiStepPipeline(DHCCreationPipeline):
                                                          building_centroids_layer=preprocessing_result.building_centroids,
                                                          feasible_solution_creator=self.feasible_solution_creator,
                                                          graph_translation_dict=building_to_point_dict)
-        # clustering_second_stage_results = self.clustering_second_stage.start()
+        clustering_second_stage_results = self.clustering_second_stage.start()
 
         # random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
         # ToDo: testing...

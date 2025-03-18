@@ -1,5 +1,6 @@
 from collections import defaultdict
 from ...util.config import Config
+from .mass_flow_calculation import MassFlowCalculation as mfc
 
 import networkx as nx
 import pandas as pd
@@ -16,7 +17,7 @@ class FitnessFunction:
     MASS_FLOW_COL_NAME = "Volumenstrom"
     PRESSURE_LOSS_THRESHOLD = 250
 
-    def __init__(self, instance: ClusteringInstance, id_to_node_translation_dict, pipe_diameter_catalogue, pipe_prices, mass_flow_dict):
+    def __init__(self, instance: ClusteringInstance, id_to_node_translation_dict, pipe_diameter_catalogue, pipe_prices):
         # ToDo: Also pass dict - id: street-type-multiplicator
         self.instance = instance
         self.buildings_to_point_dict = id_to_node_translation_dict
@@ -24,7 +25,6 @@ class FitnessFunction:
         self.fixed_cost = Config().get_fixed_cost()
         self.pipe_diameter_catalogue = pipe_diameter_catalogue
         self.pipe_prices = pipe_prices
-        self.mass_flow_dict = mass_flow_dict
 
     def compute_fitness_for_all(self, cluster_dict):
         fitness_scores = []
@@ -79,14 +79,31 @@ class FitnessFunction:
         return tree
 
     def calculate_cumulative_mass_flows(self, tree, heat_source_node):
-        mass_flows = self.mass_flow_dict.copy()
+        number_of_consumers = defaultdict(lambda: 1)
+        cumulative_demands = self.instance.demands.copy()
+        cumulative_demands = {key: float(value) for key, value in cumulative_demands.items()}
         for node in nx.dfs_postorder_nodes(tree, source=heat_source_node):
             for child in tree.successors(node):
-                mass_flows[self.points_to_building_dict[child]] += float(mass_flows[self.points_to_building_dict[child]])
-        edge_demands = {}
+                number_of_consumers[self.points_to_building_dict[node]] += number_of_consumers[self.points_to_building_dict[child]]
+                cumulative_demands[self.points_to_building_dict[node]] += cumulative_demands[self.points_to_building_dict[child]]
+        pipe_mass_flows = {}
         for u, v in tree.edges():
-            edge_demands[(u, v)] = float(mass_flows[self.points_to_building_dict[v]])
-        return edge_demands
+            simultaneity_factor = self.calculate_simultaneity_factor(number_of_consumers[self.points_to_building_dict[v]])
+            demand = cumulative_demands[self.points_to_building_dict[v]] * simultaneity_factor
+            mass_flow = mfc.calculate_mass_flow(demand)
+            pipe_mass_flows[(u, v)] = mass_flow
+        Logger().debug(f"pipe_mass_flows: {pipe_mass_flows}")
+        return pipe_mass_flows
+
+    def calculate_simultaneity_factor(self, number_of_consumers):
+        # values from Winter (2001)
+        a = 0.449677646267461
+        b = 0.551234688
+        c = 53.84382392
+        d = 1.762743268
+        inner_calc = pow((number_of_consumers / c), d)
+        sf = a + (b / (1 + inner_calc))
+        return sf
 
     def pipes_to_construct(self, network_tree, cumulative_mass_flows):
         pipes = []
@@ -102,20 +119,27 @@ class FitnessFunction:
     # ToDo: This should probably go into the catalogue class, right?
     def compute_pipe_type(self, mass_flow):
         Logger().debug(f"computing pipe type for {mass_flow}")
+        pressure_loss_threshold = 250
         pdf = self.pipe_diameter_catalogue
         filtered_pdf = pdf[pdf[self.MASS_FLOW_COL_NAME] >= mass_flow]
         if filtered_pdf.empty:
             Logger().error(f"No valid mass flow found for {mass_flow}")
             return None
         first_to_undershoot_threshold = filtered_pdf.iloc[0,:]
+        multiple_values = filtered_pdf[filtered_pdf[self.MASS_FLOW_COL_NAME] == first_to_undershoot_threshold[self.MASS_FLOW_COL_NAME]]
         # We're skipping the first column, since that's the mass flow column.
         pipe_columns = [col for col in pdf.columns if col != self.MASS_FLOW_COL_NAME]
-        selected_column = None
         pipe_type = None
-        for col in pipe_columns:
-            if pd.notna(first_to_undershoot_threshold[col]) and float(first_to_undershoot_threshold[col]) < self.PRESSURE_LOSS_THRESHOLD:
-                selected_column = col
-                pipe_type = self.pipe_prices[selected_column]
+        for row in multiple_values.iterrows():
+            value_found = False
+            for col in pipe_columns:
+                if pd.notna(row[1][col]) and float(
+                        row[1][col]) < pressure_loss_threshold:
+                    selected_column = col
+                    pipe_type = self.pipe_prices[selected_column]
+                    value_found = True
+                    break
+            if value_found:
                 Logger().debug(f"Calculated pipe type for {mass_flow}: {pipe_type}")
                 break
         if pipe_type is None:
@@ -148,64 +172,3 @@ class FitnessFunction:
 
     def calculate_single_trench_cost(self, pipe):
         return 0
-
-
-    ###### ToDo: Still needed???
-
-    # def extract_paths(self, network_tree, root_id):
-    #     root = self.buildings_to_point_dict[root_id]
-    #     leaves = [node for node in network_tree.nodes if network_tree.out_degree(node) == 0]
-    #     all_paths = []
-    #     for leaf in leaves:
-    #         paths = nx.all_simple_paths(network_tree, root, leaf)
-    #         all_paths.extend(paths)
-    #     return all_paths
-    #
-    # def calculate_critical_path_length(self, paths, network_tree):
-    #     max_length = 0
-    #     longest_path = None
-    #     for path in paths:
-    #         path_length = self.calculate_path_length(path, network_tree)
-    #         if path_length > max_length:
-    #             max_length = path_length
-    #             longest_path = path
-    #     return max_length, longest_path
-    #
-    # def calculate_maximum_pressure_gradient(self, critical_path_length):
-    #     max_pressure_gradient = self.MAX_PRESSURE_DROP_IN_BAR / critical_path_length
-    #     return max_pressure_gradient
-    #
-    # def calculate_minimum_diameter(self, path, network_tree, max_pressure_gradient):
-    #     # ToDo: available_pipes have to be sorted by diameter
-    #     mass_flow = self.calculate_mass_flow(path, network_tree)
-    #     # ToDo: Create Lookup Dataframe
-    #     pressure_gradient, diameter = self.look_up_minimum_pipe_diameter(mass_flow, max_pressure_gradient)
-    #     if pressure_gradient > max_pressure_gradient:
-    #         raise Exception("No diameter available that does not violate maximum pressure gradient constraint.")
-    #
-    # def calculate_path_length(self, path, network_tree):
-    #     path_length = 0
-    #     for i in range(len(path) - 1):
-    #         u, v = path[i], path[i + 1]
-    #         path_length += network_tree.edges[u][v]['weight']
-    #     return path_length
-    #
-    # # ToDo: Still to be done!
-    # def calculate_trenching_cost(self, pipe_list):
-    #     trenching_cost = 0
-    #     for pipe in pipe_list:
-    #         connection_id = pipe['id']
-    #         # street_type_factor = self.street_type_factors[connection_id]
-    #         street_type_factor = 1.0
-    #         length = pipe['length']
-    #         diameter = pipe['diameter']
-    #         trench_cost = self.calculate_trench_cost(float(length), float(diameter), street_type_factor)
-    #         trenching_cost += trench_cost
-    #     return trenching_cost
-    #
-    #
-    # def calculate_trench_cost(self, length, diameter, street_type_factor):
-    #     return 0
-    #
-    # def look_up_minimum_pipe_diameter(self, mass_flow, max_pressure_gradient):
-    #     pass
