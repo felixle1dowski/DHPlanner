@@ -4,6 +4,7 @@ from brkga_mp_ipr.types import BaseChromosome
 from .clustering_instance import ClusteringInstance
 from .fitness_function import FitnessFunction
 from ...util.not_yet_implemented_exception import NotYetImplementedException
+from ...util.logger import Logger
 
 
 class ClusteringDecoder:
@@ -34,15 +35,26 @@ class ClusteringDecoder:
         return fitness
 
     def decode_single_use(self, chromosome: BaseChromosome):
+        cluster_dict = self.decode_chromosome(chromosome)
+        fitness = self.evaluate_solution(cluster_dict)
+        return fitness, cluster_dict
+
+    def decode_end_result(self, chromosome: BaseChromosome):
+        cluster_dict = self.decode_chromosome(chromosome)
+        end_result = self.fitness_function.compute_fitness_for_all_result(cluster_dict)
+        return end_result
+
+    def decode_chromosome(self, chromosome: BaseChromosome):
         permutation = sorted(
             (key, index) for index, key in enumerate(chromosome)
         )
         all_indices = [index for key, index in permutation]
         arranged_ids = self.instance.get_decoded_list_of_ids(all_indices)
         cluster_capacities = self.init_cluster_capacities(arranged_ids)
+        if cluster_capacities is -1:
+            return self.CONSTRAINT_BROKEN_PENALTY
         cluster_dict = self.create_cluster_membership_dict(arranged_ids, cluster_capacities)
-        fitness = self.evaluate_solution(cluster_dict)
-        return fitness, cluster_dict
+        return cluster_dict
 
     def init_cluster_capacities(self, permutation: list) -> {str: float}:
         return_dict = {}
@@ -98,10 +110,13 @@ class ClusteringDecoder:
         for cluster_center, distance in distances_to_center:
             if self.potential_member_fits_into_cluster(cluster_capacities, cluster_center, potential_member):
                 cluster_dict[cluster_center].append(potential_member)
+                Logger().debug(f"cluster capacity of {cluster_center} was: {cluster_capacities[cluster_center]}")
                 cluster_capacities[cluster_center] -= self.instance.get_point_demand(potential_member)
+                Logger().debug(f"cluster capacity of {cluster_center} is: {cluster_capacities[cluster_center]}")
                 potential_member_assigned = True
                 break
         if not potential_member_assigned:
+            Logger().debug(f"{potential_member} had to be sorted out!")
             cluster_dict[self.MEMBERS_TO_FLAG_INDEX].append(potential_member)
         return cluster_dict
 
@@ -110,6 +125,8 @@ class ClusteringDecoder:
                                            potential_member: str):
         remaining_capacity = float(cluster_capacities[cluster_center])
         potential_remaining_capacity = remaining_capacity - self.instance.get_point_demand(potential_member)
+        Logger().debug(f'calculating remaining capacit for {potential_member}: {remaining_capacity} - {self.instance.get_point_demand(potential_member)} = {potential_remaining_capacity}'
+                       f'enough capacity? {potential_remaining_capacity >= 0}')
         return potential_remaining_capacity >= 0
 
     def evaluate_solution(self, cluster_dict) -> float:

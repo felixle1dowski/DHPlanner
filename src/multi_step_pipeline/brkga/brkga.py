@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from .clustering_instance import ClusteringInstance
 from .clustering_decoder import ClusteringDecoder
 from brkga_mp_ipr.types_io import load_configuration
@@ -40,6 +42,11 @@ class Brkga:
         brkga.evolve(self.num_generations)
         best_distance = brkga.get_best_fitness()
         Logger().info(f"best distance sum: {best_distance}")
-        best_fitness, best_translated_chromosome = self.decoder.decode_single_use(brkga.get_best_chromosome())
-        Logger().info(f"best chromosome: {best_translated_chromosome}")
-        return best_fitness, best_translated_chromosome
+        end_result = self.get_result_for_chromosome(brkga.get_best_chromosome())
+        Logger().info(f"end result brkga: {end_result}")
+        return end_result
+
+    def get_result_for_chromosome(self, chromosome):
+        """Only used for end result."""
+        end_result = self.decoder.decode_end_result(chromosome)
+        return end_result

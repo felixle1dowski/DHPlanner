@@ -62,7 +62,7 @@ class MultiStepPipeline(DHCCreationPipeline):
                                                          feasible_solution_creator=self.feasible_solution_creator,
                                                          graph_translation_dict=building_to_point_dict)
         clustering_second_stage_results = self.clustering_second_stage.start()
-
+        #
         # random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
         # ToDo: testing...
         # self.mst_creator.visualize_subgraph_mst(shortest_paths, random_items)

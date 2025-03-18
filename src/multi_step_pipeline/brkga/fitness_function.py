@@ -16,6 +16,7 @@ class FitnessFunction:
     DEMAND_FIELD = "peak_demand"
     MASS_FLOW_COL_NAME = "Volumenstrom"
     PRESSURE_LOSS_THRESHOLD = 250
+    PIVOT_STRING_SINGLE = "pivot_members_end"
 
     def __init__(self, instance: ClusteringInstance, id_to_node_translation_dict, pipe_diameter_catalogue, pipe_prices):
         # ToDo: Also pass dict - id: street-type-multiplicator
@@ -47,13 +48,85 @@ class FitnessFunction:
         pipe_mass_flows = self.calculate_cumulative_mass_flows(tree, self.buildings_to_point_dict[cluster_center_id])
 
         Logger().debug(f"pipe flows calculated: {pipe_mass_flows}")
-        pipes = self.pipes_to_construct(tree, pipe_mass_flows)
+        pipes, _ = self.pipes_to_construct(tree, pipe_mass_flows)
         pipe_cost = self.calculate_pipe_cost(pipes)
 
         # ToDo: be careful!! cluster center id_subset needs to contain cluster center!!
         fitness = self.instance.get_point_demands(id_subset) / (self.fixed_cost + pipe_cost)
         Logger().debug(f"fitness calculated for {id_subset} with cluster center {cluster_center_id}: {fitness}")
         return fitness
+
+    def compute_fitness_for_all_result(self, cluster_dict):
+        result_for_each_cluster = {}
+        for cluster_center_id, members in cluster_dict.items():
+            if cluster_center_id != "-1":
+                members.append(cluster_center_id)
+                pipe_result, supplied_power, total_pipe_cost, total_cost, fitness = self.compute_fitness_result(members,
+                                               cluster_center_id)
+                result = {
+                    'cluster_center': cluster_center_id,
+                    'pipe_result': pipe_result,
+                    'supplied_power': supplied_power,
+                    'total_pipe_cost': total_pipe_cost,
+                    'total_cost': total_cost,
+                    'fitness': fitness,
+                    'members': members
+                }
+                result_for_each_cluster[cluster_center_id] = result
+        result_sums = self.result_sums(result_for_each_cluster)
+        excluded_members = cluster_dict["-1"]
+        result_for_each_cluster["-1"] = {
+            'cluster_center': "-1",
+            'members': [member for member in excluded_members if member != self.PIVOT_STRING_SINGLE]
+        }
+        end_result = {
+            'sums' : result_sums,
+            'clusters' : result_for_each_cluster
+        }
+        Logger().debug(f"end_result attained: {end_result}")
+        return end_result
+
+    def result_sums(self, result_dict):
+        sum_of_supplied_power = 0
+        sum_of_total_pipe_cost = 0
+        sum_of_total_cost = 0
+        sum_of_fitness = 0
+        for value in result_dict.values():
+            sum_of_supplied_power += value['supplied_power']
+            sum_of_total_pipe_cost += value['total_pipe_cost']
+            sum_of_total_cost += value['total_cost']
+            sum_of_fitness += value['fitness']
+        return_value = {
+            'sum_of_supplied_power': sum_of_supplied_power,
+            'sum_of_total_pipe_cost': sum_of_total_pipe_cost,
+            'sum_of_total_cost': sum_of_total_cost,
+            'sum_of_fitness': sum_of_fitness
+        }
+        return return_value
+
+    def compute_fitness_result(self, id_subset: list, cluster_center_id):
+        """Use only for end result!"""
+        subset_graph = self.instance.get_subgraph(id_subset)
+        mst = self.create_mst(subset_graph)
+        tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
+        pipe_mass_flows = self.calculate_cumulative_mass_flows(tree, self.buildings_to_point_dict[cluster_center_id])
+        pipe_mass_flows_result = {}
+        for (u, v), value in pipe_mass_flows.items():
+            from_node = self.points_to_building_dict[u]
+            to_node = self.points_to_building_dict[v]
+            mass_flow = value
+            pipe_mass_flows_result[(from_node, to_node)] = mass_flow
+        pipes, from_to_pipes = self.pipes_to_construct(tree, pipe_mass_flows)
+        pipe_result = from_to_pipes.copy()
+        for (u, v), value in from_to_pipes.items():
+            value['mass_flow'] = pipe_mass_flows_result[(u, v)]
+            value['pipe_cost'] = self.calculate_single_pipe_cost(value)
+            pipe_result[(u, v)] = value
+        total_pipe_cost = self.calculate_pipe_cost(pipes)
+        total_cost = total_pipe_cost + self.fixed_cost
+        supplied_power = self.instance.get_point_demands(id_subset)
+        fitness = supplied_power / total_cost
+        return pipe_result, supplied_power, total_pipe_cost, total_cost, fitness
 
     def create_mst(self, subset_graph):
         mst = nx.minimum_spanning_tree(subset_graph, weight='weight')
@@ -92,7 +165,12 @@ class FitnessFunction:
             demand = cumulative_demands[self.points_to_building_dict[v]] * simultaneity_factor
             mass_flow = mfc.calculate_mass_flow(demand)
             pipe_mass_flows[(u, v)] = mass_flow
-        Logger().debug(f"pipe_mass_flows: {pipe_mass_flows}")
+        if Config().get_log_level() == "debug":
+            transformed_dict = {
+                f"{self.points_to_building_dict[u]} to {self.points_to_building_dict[v]}": value
+                for (u, v), value in pipe_mass_flows.items()
+            }
+            Logger().debug(f"pipe_mass_flows: {transformed_dict}")
         return pipe_mass_flows
 
     def calculate_simultaneity_factor(self, number_of_consumers):
@@ -107,6 +185,7 @@ class FitnessFunction:
 
     def pipes_to_construct(self, network_tree, cumulative_mass_flows):
         pipes = []
+        from_to_pipes = {}
         for u, v, data in network_tree.edges(data=True):
             Logger().debug(f"creating pipe from {self.points_to_building_dict[u]} to {self.points_to_building_dict[v]}")
             pipe = {
@@ -114,7 +193,8 @@ class FitnessFunction:
                 'length': data['weight'],
                 'pipe_type': self.compute_pipe_type(cumulative_mass_flows[(u, v)])}
             pipes.append(pipe)
-        return pipes
+            from_to_pipes[(self.points_to_building_dict[u], self.points_to_building_dict[v])] = pipe
+        return pipes, from_to_pipes
 
     # ToDo: This should probably go into the catalogue class, right?
     def compute_pipe_type(self, mass_flow):

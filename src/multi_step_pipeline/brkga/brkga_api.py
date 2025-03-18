@@ -47,7 +47,7 @@ class BrkgaAPI:
                  id_to_node_translation_dict: dict,
                  pivot_element="none"):
 
-        best_fitness, best_chromosome = self.do_brkga_(graph,
+        result = self.do_brkga_(graph,
                                                        max_capacity,
                                                        demands,
                                                        num_clusters,
@@ -57,7 +57,7 @@ class BrkgaAPI:
                                                        total_member_list,
                                                        id_to_node_translation_dict,
                                                        pivot_element)
-        return best_fitness, best_chromosome
+        return result
 
     def do_brkga_(self,
                   graph,
@@ -98,8 +98,8 @@ class BrkgaAPI:
                       sense=Sense.MAXIMIZE,
                       decoder=decoder,
                       initial_solution=initial_solution)
-        best_fitness, best_chromosome = brkga.do_brkga()
-        return best_fitness, best_chromosome
+        result = brkga.do_brkga()
+        return result
 
     def encode_warm_start(self, warm_start, total_member_list : list, pivot_element="none"):
         random.seed(self.SEED)

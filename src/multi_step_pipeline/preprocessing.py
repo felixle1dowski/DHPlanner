@@ -75,9 +75,9 @@ class Preprocessing:
         self.delete_centroids_without_heat_demand()
         self.add_peak_demands_to_building_centroids()
         Logger().info("Peak demands have been calculated successfully and added to the buildings centroids.")
+        self.delete_centroids_with_too_large_heat_demand()
         result = PreprocessingResult(self.buildings_centroids, self.selected_roads_exploded)
         return result
-
 
     # ToDo: needs to be tested.
     def verify_layer(self, layer_name, verify_crs=False):
@@ -338,3 +338,19 @@ class Preprocessing:
         Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to not having a corresponding"
                        f"heat demand.")
 
+    def delete_centroids_with_too_large_heat_demand(self):
+        building_centroids = self.buildings_centroids
+        centroid_provider = building_centroids.dataProvider()
+        peak_demand_idx = building_centroids.fields().indexFromName(self.PEAK_DEMAND_COL_NAME)
+        ids_to_delete = []
+        str_ids_to_delete = []
+        for feature in building_centroids.getFeatures():
+            if float(feature.attributes()[peak_demand_idx]) >= float(Config().get_heat_capacity()):
+                Logger().debug(f"{float(feature.attributes()[peak_demand_idx])} was larger than {float(Config().get_heat_capacity())}")
+                ids_to_delete.append(feature.id())
+                # ToDo: Delete all the osm_id accesses and replace it by a centrally located wallet or similar.
+                str_ids_to_delete.append(DhpUtility.get_value_from_field(building_centroids, feature, "osm_id"))
+        centroid_provider.deleteFeatures(ids_to_delete)
+        building_centroids.commitChanges()
+        Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to having a larger heat demand than"
+                       f"the specified heating source is able to provide.")

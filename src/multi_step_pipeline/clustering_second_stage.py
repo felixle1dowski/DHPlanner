@@ -84,24 +84,15 @@ class ClusteringSecondStage:
                 Logger().debug(f"feasible solution has been created for cluster {cluster_id}\n"
                                f"solution: {feasible_solution}")
                 clustering_second_stage_adapter = ClusteringSecondStageAdapter()
-                best_fitness, best_chromosome = clustering_second_stage_adapter.do_brkga(
+                brkga_result = clustering_second_stage_adapter.do_brkga(
                     graph=self.shortest_path_graph,
                     cluster_dict=feasible_solution_with_all_members,
                     info_layer=self.building_centroids,
                     number_of_clusters=number_of_clusters,
                     id_to_node_translation_dict=self.graph_translation_dict,
                     pivot_element=Config().get_pivot_strategy()) # ToDo: Do this here or in orchestrator?
-                # ToDo: DELETE EVERYTHING THAT FOLLOWS!!!
-                self.selected_buildings_expression = self.prepare_filter_expression()
-                output_layer = self.visualize_best_chromosome(best_chromosome)
-                cluster_ids = [cluster_id for cluster_id, cluster_members in best_chromosome.items()]
-                renderer = self.create_unique_cluster_colors_renderer(cluster_ids,
-                                                                      output_layer.geometryType(),
-                                                                      self.CLUSTER_FIELD_NAME)
-                self.visualize_clustering_results_by_repainting(output_layer, renderer)
-                # Except this maybe.
-                best_chromosome_with_capacities = self.calculate_used_capacity(best_chromosome, self.building_centroids)
-                Logger().info(f"BRKGA Solution: {best_chromosome_with_capacities}")
+                Logger().info(f"brkga result {brkga_result}")
+                return brkga_result
 
     def generate_temporary_clustering_solution(self, cluster_id, cluster_members):
         member_features_iterator = DhpUtility.get_features_by_id_field(self.building_centroids,

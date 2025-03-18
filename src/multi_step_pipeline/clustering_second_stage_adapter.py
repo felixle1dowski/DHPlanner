@@ -24,7 +24,7 @@ class ClusteringSecondStageAdapter():
         demands = self.get_demands_of_members_as_dict(members, info_layer)
         feasible_solution = cluster_dict[self.FEASIBLE_SOLUTION_KEY]
         total_distance = cluster_dict[self.TOTAL_DISTANCE_KEY]
-        best_fitness, best_chromosome = brkga_api.do_brkga(
+        result = brkga_api.do_brkga(
                                      graph=graph,
                                      max_capacity=Config().get_heat_capacity(),
                                      demands=demands,
@@ -35,7 +35,7 @@ class ClusteringSecondStageAdapter():
                                      total_member_list=members,
                                     id_to_node_translation_dict=id_to_node_translation_dict,
                                     pivot_element=pivot_element)
-        return best_fitness, best_chromosome
+        return result
 
 
     def get_demands_of_members_as_dict(self, members, info_layer):
