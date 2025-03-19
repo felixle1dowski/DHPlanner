@@ -11,8 +11,6 @@ class ClusteringInstance:
     CLUSTER_ID_FIELD = "cluster_id"
     PIVOT_STRING_SINGLE = "pivot_members_end"
 
-    # ToDo: Change Constructor api to hand over dataframe instead of distance_matrix and members list.
-
     def __init__(self, graph: nx.Graph, max_capacity: float, demands: {str: float}, members: list,
                  id_to_node_translation_dict: dict, pivot_element="none"):
         self.graph = graph

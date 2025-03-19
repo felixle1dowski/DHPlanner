@@ -17,6 +17,7 @@ class FitnessFunction:
     MASS_FLOW_COL_NAME = "Volumenstrom"
     PRESSURE_LOSS_THRESHOLD = 250
     PIVOT_STRING_SINGLE = "pivot_members_end"
+    CONSTRAINT_BROKEN_PENALTY = 1_000_000_000
 
     def __init__(self, instance: ClusteringInstance, id_to_node_translation_dict, pipe_diameter_catalogue, pipe_prices):
         # ToDo: Also pass dict - id: street-type-multiplicator
@@ -41,6 +42,8 @@ class FitnessFunction:
 
     def compute_fitness(self, id_subset : list, cluster_center_id):
         Logger().debug(f"Calculating fitness for {id_subset} with {cluster_center_id} as it's cluster center.")
+        if len(id_subset) == 1:
+            return self.fixed_cost / self.instance.get_point_demands(id_subset)
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
         tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
@@ -51,13 +54,20 @@ class FitnessFunction:
         pipes, _ = self.pipes_to_construct(tree, pipe_mass_flows)
         pipe_cost = self.calculate_pipe_cost(pipes)
 
+        all_demands = self.instance.get_point_demands(id_subset)
+        total_cost = self.fixed_cost + pipe_cost
+        Logger().debug(f"all demands calculated: {all_demands}, total cost: {total_cost}")
+        # zero and negative checks to make sure.
+        if all_demands <= 0:
+            return self.CONSTRAINT_BROKEN_PENALTY
         # ToDo: be careful!! cluster center id_subset needs to contain cluster center!!
-        fitness = self.instance.get_point_demands(id_subset) / (self.fixed_cost + pipe_cost)
+        fitness =  (self.fixed_cost + pipe_cost) / all_demands
         Logger().debug(f"fitness calculated for {id_subset} with cluster center {cluster_center_id}: {fitness}")
         return fitness
 
     def compute_fitness_for_all_result(self, cluster_dict):
-        result_for_each_cluster = {}
+        Logger().debug(f"Calculating fitness for all results in {cluster_dict}.")
+        result_for_each_cluster_list = []
         for cluster_center_id, members in cluster_dict.items():
             if cluster_center_id != "-1":
                 members.append(cluster_center_id)
@@ -72,26 +82,26 @@ class FitnessFunction:
                     'fitness': fitness,
                     'members': members
                 }
-                result_for_each_cluster[cluster_center_id] = result
-        result_sums = self.result_sums(result_for_each_cluster)
+                result_for_each_cluster_list.append(result)
+        result_sums = self.result_sums(result_for_each_cluster_list)
         excluded_members = cluster_dict["-1"]
-        result_for_each_cluster["-1"] = {
+        result_for_each_cluster_list.append({
             'cluster_center': "-1",
             'members': [member for member in excluded_members if member != self.PIVOT_STRING_SINGLE]
-        }
+        })
         end_result = {
             'sums' : result_sums,
-            'clusters' : result_for_each_cluster
+            'clusters' : result_for_each_cluster_list
         }
         Logger().debug(f"end_result attained: {end_result}")
         return end_result
 
-    def result_sums(self, result_dict):
+    def result_sums(self, result_list):
         sum_of_supplied_power = 0
         sum_of_total_pipe_cost = 0
         sum_of_total_cost = 0
         sum_of_fitness = 0
-        for value in result_dict.values():
+        for value in result_list:
             sum_of_supplied_power += value['supplied_power']
             sum_of_total_pipe_cost += value['total_pipe_cost']
             sum_of_total_cost += value['total_cost']
@@ -106,6 +116,9 @@ class FitnessFunction:
 
     def compute_fitness_result(self, id_subset: list, cluster_center_id):
         """Use only for end result!"""
+        if len(id_subset) == 1:
+            return ({}, self.instance.get_point_demands(id_subset),
+                    0, self.fixed_cost, self.fixed_cost / self.instance.get_point_demands(id_subset))
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
         tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
@@ -117,15 +130,20 @@ class FitnessFunction:
             mass_flow = value
             pipe_mass_flows_result[(from_node, to_node)] = mass_flow
         pipes, from_to_pipes = self.pipes_to_construct(tree, pipe_mass_flows)
-        pipe_result = from_to_pipes.copy()
+        pipe_result = []
         for (u, v), value in from_to_pipes.items():
+            value['from_building'] = u
+            value['to_building'] = v
             value['mass_flow'] = pipe_mass_flows_result[(u, v)]
             value['pipe_cost'] = self.calculate_single_pipe_cost(value)
-            pipe_result[(u, v)] = value
+            pipe_result.append(value)
         total_pipe_cost = self.calculate_pipe_cost(pipes)
         total_cost = total_pipe_cost + self.fixed_cost
         supplied_power = self.instance.get_point_demands(id_subset)
-        fitness = supplied_power / total_cost
+        if supplied_power <= 0:
+            fitness = self.CONSTRAINT_BROKEN_PENALTY
+        else:
+            fitness = total_cost / supplied_power
         return pipe_result, supplied_power, total_pipe_cost, total_cost, fitness
 
     def create_mst(self, subset_graph):

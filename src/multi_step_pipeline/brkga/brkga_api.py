@@ -95,7 +95,7 @@ class BrkgaAPI:
         brkga = Brkga(instance=instance,
                       seed=self.SEED,
                       num_generations=self.NUM_GENERATIONS,
-                      sense=Sense.MAXIMIZE,
+                      sense=Sense.MINIMIZE,
                       decoder=decoder,
                       initial_solution=initial_solution)
         result = brkga.do_brkga()

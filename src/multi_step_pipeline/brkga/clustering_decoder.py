@@ -10,7 +10,7 @@ from ...util.logger import Logger
 class ClusteringDecoder:
     MEMBERS_TO_FLAG_INDEX = "-1"
     PIVOT_SINGLE_NAME = "pivot_members_end"
-    CONSTRAINT_BROKEN_PENALTY = -1000
+    CONSTRAINT_BROKEN_PENALTY = 1_000_000_000
 
     def __init__(self, instance: ClusteringInstance, num_clusters: int, fitness_function: FitnessFunction,
                  pivot_element="none"):
@@ -41,6 +41,8 @@ class ClusteringDecoder:
 
     def decode_end_result(self, chromosome: BaseChromosome):
         cluster_dict = self.decode_chromosome(chromosome)
+        if cluster_dict == self.CONSTRAINT_BROKEN_PENALTY:
+            return self.CONSTRAINT_BROKEN_PENALTY
         end_result = self.fitness_function.compute_fitness_for_all_result(cluster_dict)
         return end_result
 
@@ -63,7 +65,7 @@ class ClusteringDecoder:
             if self.PIVOT_SINGLE_NAME in cluster_centers:
                 return -1
         for cluster_center in cluster_centers:
-            return_dict[cluster_center] = float(self.instance.max_capacity)
+            return_dict[cluster_center] = float(self.instance.max_capacity) - float(self.instance.get_point_demand(cluster_center))
         return return_dict
 
     def create_cluster_membership_dict(self, permutation: list, cluster_capacities: {int: float}) -> {str: list[str]}:
@@ -89,8 +91,8 @@ class ClusteringDecoder:
         str: list}:
         cluster_centers = permutation[:self.num_clusters]
         potential_members = permutation[self.num_clusters:]
-        result_dict = defaultdict(list)
-        break_index = 0
+        result_dict = defaultdict(list, {center: [] for center in cluster_centers})
+        break_index = self.num_clusters
         for potential_member in potential_members:
             if potential_member == self.PIVOT_SINGLE_NAME:
                 break
@@ -98,6 +100,7 @@ class ClusteringDecoder:
                                                                              potential_member, cluster_centers)
             break_index += 1
         members_to_exclude = permutation[break_index:]
+        Logger().debug(f"break index: {break_index}, members_to_exclude: {members_to_exclude}")
         for member in members_to_exclude:
             result_dict[self.MEMBERS_TO_FLAG_INDEX].append(member)
         return result_dict
@@ -125,7 +128,7 @@ class ClusteringDecoder:
                                            potential_member: str):
         remaining_capacity = float(cluster_capacities[cluster_center])
         potential_remaining_capacity = remaining_capacity - self.instance.get_point_demand(potential_member)
-        Logger().debug(f'calculating remaining capacit for {potential_member}: {remaining_capacity} - {self.instance.get_point_demand(potential_member)} = {potential_remaining_capacity}'
+        Logger().debug(f'calculating remaining capacity for {potential_member}: {remaining_capacity} - {self.instance.get_point_demand(potential_member)} = {potential_remaining_capacity}'
                        f'enough capacity? {potential_remaining_capacity >= 0}')
         return potential_remaining_capacity >= 0
 
