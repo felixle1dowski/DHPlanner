@@ -9,6 +9,7 @@ from .multi_step_pipeline.shortest_path_graph_creator import ShortestPathGraphCr
 from .multi_step_pipeline.mst_visualizer import MSTVisualizer
 from .multi_step_pipeline.multi_step_pipeline import MultiStepPipeline
 from .multi_step_pipeline.clustering_second_stage_feasible_solution_creator import ClusteringSecondStageFeasibleSolutionCreator
+from .multi_step_pipeline.visualization import Visualization
 
 
 class DHCCreationPipelineFactory:
@@ -30,12 +31,14 @@ class DHCCreationPipelineFactory:
             graph_creator = GraphCreator()
             mst_creator = ShortestPathGraphCreator()
             mst_visualizer = MSTVisualizer()
+            visualization = Visualization()
             return MultiStepPipeline(preprocessing,
                                      clustering_first_stage,
                                      feasible_solution_creator,
                                      clustering_second_stage,
                                      graph_creator,
                                      mst_creator,
-                                     mst_visualizer)
+                                     mst_visualizer,
+                                     visualization)
         else:
             raise Exception("method is not valid.")
