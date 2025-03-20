@@ -45,7 +45,7 @@ class Logger:
 
     def set_file_handlers(self):
         """Sets up file handlers with log rotation."""
-        file_handler = RotatingFileHandler(self.LOG_FILE_PATH, maxBytes=1e6, backupCount=3)
+        file_handler = RotatingFileHandler(self.LOG_FILE_PATH, maxBytes=1e8, backupCount=0)
         file_handler.setLevel(self.map_log_level(self.log_level))
         logging_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s  [File: %(filename)s, Line: %(lineno)d, Function: %(funcName)s]'
         file_handler.setFormatter(logging.Formatter(logging_format))

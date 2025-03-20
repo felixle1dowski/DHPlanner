@@ -1,6 +1,7 @@
 from qgis.core import (QgsColorBrewerColorRamp, QgsRuleBasedRenderer,
                        QgsVectorLayer, QgsProject, QgsFeature,
-                       QgsCategorizedSymbolRenderer, QgsSymbol, QgsRendererCategory)
+                       QgsCategorizedSymbolRenderer, QgsSymbol, QgsRendererCategory, QgsFillSymbol,
+                       QgsLineSymbol, QgsStyle)
 from PyQt5.QtCore import QVariant
 from PyQt5.QtGui import QColor
 from ..util.config import Config
@@ -16,15 +17,25 @@ class Visualization:
     ROAD_ID_FIELD = "osm_id"
     CLUSTER_CENTER_FIELD = "cluster_center"
 
+    ready_to_start = False
     exploded_roads_layer = None
+    cluster_dict = None
 
-    def visualize_network(self, cluster_dict):
-        pass
 
-    def set_required_fields(self, exploded_roads):
+    def start(self):
+        if self.ready_to_start:
+            cluster_center_colors_dict = self.generate_color_per_cluster_center()
+            building_categories = self.create_categories(cluster_center_colors_dict, QgsFillSymbol)
+            pipe_categories = self.create_categories(cluster_center_colors_dict, QgsLineSymbol)
+            self.create_member_layer(building_categories)
+            self.create_network_layer(pipe_categories)
+
+    def set_required_fields(self, exploded_roads, cluster_dict):
         self.exploded_roads_layer = exploded_roads
+        self.cluster_dict = cluster_dict
+        self.ready_to_start = True
 
-    def create_member_layer(self, cluster_dict):
+    def create_member_layer(self, cluster_center_fill_categories):
         building_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
         building_fields = building_layer.fields()
         building_crs = building_layer.crs().authid()
@@ -38,7 +49,7 @@ class Visualization:
 
         # Get all members from the cluster dictionary
         complete_member_list = []
-        for entry in cluster_dict['clusters']:
+        for entry in self.cluster_dict['clusters']:
             members = entry['members']
             complete_member_list += members
 
@@ -68,10 +79,10 @@ class Visualization:
 
         # Add cluster center field and assign values
         DhpUtility.create_new_field(member_layer, self.CLUSTER_CENTER_FIELD, QVariant.String)
-        all_cluster_centers = [inner_dict['cluster_center'] for inner_dict in cluster_dict['clusters']]
+        all_cluster_centers = [inner_dict['cluster_center'] for inner_dict in self.cluster_dict['clusters']]
         for cluster_center in all_cluster_centers:
             cluster_members_of_cluster_center = DhpUtility.flatten_list(
-                [inner_dict['members'] for inner_dict in cluster_dict['clusters'] if
+                [inner_dict['members'] for inner_dict in self.cluster_dict['clusters'] if
                  inner_dict['cluster_center'] == cluster_center]
             )
             for member in cluster_members_of_cluster_center:
@@ -79,31 +90,28 @@ class Visualization:
                 DhpUtility.assign_value_to_field(member_layer, self.CLUSTER_CENTER_FIELD, feature, cluster_center)
 
         # Apply styling
-        # colors = Visualization.generate_colors(all_cluster_centers)
-        renderer = self.create_unique_cluster_colors_renderer(all_cluster_centers, member_layer.geometryType(), self.CLUSTER_CENTER_FIELD)
-        member_layer.setRenderer(renderer)
-        member_layer.triggerRepaint()
+        self.render_and_repaint(member_layer, self.CLUSTER_CENTER_FIELD, cluster_center_fill_categories)
         # Commit changes and refresh the layer
         member_layer.commitChanges()
         member_layer.updateExtents()  # Update the layer's extent
         if iface:
             iface.layerTreeView().refreshLayerSymbology(member_layer.id())
 
-    def create_unique_cluster_colors_renderer(self, labels, geometry_type, cluster_field):
-        unique_labels = set(labels)
-        categories = []
-        for cluster_id in unique_labels:
-            cluster_id = str(cluster_id)
-            symbol = QgsSymbol.defaultSymbol(geometry_type)
-            colors = QColor.fromRgb(random.randrange(0, 256), random.randrange(0, 256), random.randrange(0, 256))
-            symbol.setColor(colors)
-            category = QgsRendererCategory(cluster_id, symbol, cluster_id)
-            categories.append(category)
-        renderer = QgsCategorizedSymbolRenderer(cluster_field, categories)
-        return renderer
+    # def create_unique_cluster_colors_renderer(self, labels, geometry_type, cluster_field):
+    #     unique_labels = set(labels)
+    #     categories = []
+    #     for cluster_id in unique_labels:
+    #         cluster_id = str(cluster_id)
+    #         symbol = QgsSymbol.defaultSymbol(geometry_type)
+    #         colors = QColor.fromRgb(random.randrange(0, 256), random.randrange(0, 256), random.randrange(0, 256))
+    #         symbol.setColor(colors)
+    #         category = QgsRendererCategory(cluster_id, symbol, cluster_id)
+    #         categories.append(category)
+    #     renderer = QgsCategorizedSymbolRenderer(cluster_field, categories)
+    #     return renderer
 
-    def create_network_layer(self, cluster_dict):
-        roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}
+    def create_network_layer(self, cluster_center_line_categories):
+        roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in self.cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}
         roads_crs = self.exploded_roads_layer.crs().authid()
         roads_fields = self.exploded_roads_layer.fields()
         network_layer = QgsVectorLayer(f'MultiLineString?crs={roads_crs}', 'pipe_network', 'memory')
@@ -138,17 +146,76 @@ class Visualization:
                         pipe_feature = DhpUtility.get_feature_by_id_field(network_layer, self.ROAD_ID_FIELD, road_id)
                         DhpUtility.assign_value_to_field(network_layer, self.CLUSTER_CENTER_FIELD,
                                                          pipe_feature, cluster_center)
+        self.render_and_repaint(network_layer, self.CLUSTER_CENTER_FIELD, cluster_center_line_categories)
+
         network_layer.commitChanges()
         network_layer.updateExtents()
         QgsProject.instance().addMapLayer(network_layer)
 
+    def render_and_repaint(self, layer, field_to_categorize_by, categories):
+        renderer = QgsCategorizedSymbolRenderer(field_to_categorize_by, categories)
+        layer.setRenderer(renderer)
+        layer.triggerRepaint()
+
+    def generate_color_per_cluster_center(self):
+        cluster_centers = [inner_dict['cluster_center'] for inner_dict in self.cluster_dict['clusters']]
+        cluster_center_colors_dict = Visualization.generate_colors(cluster_centers)
+        return cluster_center_colors_dict
+
+    def create_categories(self, center_with_corresponding_color, symbol_type):
+        categories = []
+        if isinstance(symbol_type, QgsFillSymbol):
+            categories = self.create_categories_fill(center_with_corresponding_color)
+        elif isinstance(symbol_type, QgsLineSymbol):
+            categories = self.create_categories_line(center_with_corresponding_color)
+        Logger().debug(f"generated categories: {categories}")
+        return categories
+
+    def create_categories_fill(self, center_with_corresponding_color):
+        categories = []
+        # creating symbols
+        for cluster_center, color in center_with_corresponding_color.items():
+            symbol = QgsFillSymbol.createSimple({
+                'color': color,
+                'outline_color': 'black'
+            })
+            # creating categories
+            category = QgsRendererCategory(cluster_center, symbol, str(cluster_center))
+            categories.append(category)
+        return categories
+
+    def create_categories_line(self, center_with_corresponding_color):
+        categories = []
+        # creating symbols
+        for cluster_center, color in center_with_corresponding_color.items():
+            symbol = QgsLineSymbol.createSimple({
+                'color': color,
+                'outline_color': color
+            })
+            # creating categories
+            category = QgsRendererCategory(cluster_center, symbol, str(cluster_center))
+            categories.append(category)
+        return categories
+
     @staticmethod
-    def generate_colors(categories, ramp_name='Spectral'):
+    def generate_colors(categories, ramp_name='Turbo'):
+        style = QgsStyle.defaultStyle()
+        ramp = style.colorRamp(ramp_name)
+
+        # Check if the ramp was found
+        if not ramp:
+            Logger().error(f"Failed to find color ramp with name: {ramp_name}")
+            return {center: '#000000' for center in categories}  # Default to black
+
         num_colors = len(categories)
-        ramp = QgsColorBrewerColorRamp(ramp_name, num_colors)
-        ramp.updateColors()
         center_colors = {}
+
         for i, center in enumerate(categories):
-            color = ramp.color(i % num_colors).name()
+            # Normalize i to a value between 0 and 1
+            normalized_value = i / (num_colors - 1) if num_colors > 1 else 0.5
+            color = ramp.color(normalized_value).name()
             center_colors[center] = color
+            Logger().debug(f"Color for center {center}: {color}")
+
+        Logger().debug(f"Generated colors for cluster centers: {center_colors}")
         return center_colors

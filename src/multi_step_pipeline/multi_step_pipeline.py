@@ -31,12 +31,12 @@ class MultiStepPipeline(DHCCreationPipeline):
 
     def start(self):
         # Logger().info("Starting Preprocessing.")
-        # preprocessing_result = self.timed_wrapper(self.preprocessing.start)
+        preprocessing_result = self.timed_wrapper(self.preprocessing.start)
         # Logger().info("Finished Preprocessing.")
-        # graph, building_to_point_dict, line_layer = self.graph_creator.start(
-        #     strategy=Config().get_installation_strategy(),
-        #     exploded_roads=preprocessing_result.exploded_roads,
-        #     building_centroids=preprocessing_result.building_centroids)
+        graph, building_to_point_dict, line_layer = self.graph_creator.start(
+            strategy=Config().get_installation_strategy(),
+            exploded_roads=preprocessing_result.exploded_roads,
+            building_centroids=preprocessing_result.building_centroids)
         # self.shortest_path_creator.set_required_fields(graph, line_layer, list(building_to_point_dict.values()))
         # shortest_paths = self.shortest_path_creator.start()
         #
@@ -365,7 +365,8 @@ class MultiStepPipeline(DHCCreationPipeline):
              'total_pipe_cost': 12145.63589973221, 'total_cost': 112145.63589973221, 'fitness': 492.53326290306893,
              'members': ['35405799', '170944156', '170944165']},
             {'cluster_center': '-1', 'members': ['170944168', '170944152']}]}
-        self.visualization.create_member_layer(clustering_second_stage_results)
+        self.visualization.set_required_fields(preprocessing_result.exploded_roads, clustering_second_stage_results)
+        self.visualization.start()
         #
         # random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
         # ToDo: testing...
