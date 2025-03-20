@@ -13,10 +13,16 @@ class Visualization:
 
     COLOR_RAMP_NAME = 'Spectral'
     BUILDING_ID_FIELD = "osm_id"
+    ROAD_ID_FIELD = "osm_id"
     CLUSTER_CENTER_FIELD = "cluster_center"
+
+    exploded_roads_layer = None
 
     def visualize_network(self, cluster_dict):
         pass
+
+    def set_required_fields(self, exploded_roads):
+        self.exploded_roads_layer = exploded_roads
 
     def create_member_layer(self, cluster_dict):
         building_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
@@ -96,6 +102,45 @@ class Visualization:
         renderer = QgsCategorizedSymbolRenderer(cluster_field, categories)
         return renderer
 
+    def create_network_layer(self, cluster_dict):
+        roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}
+        roads_crs = self.exploded_roads_layer.crs().authid()
+        roads_fields = self.exploded_roads_layer.fields()
+        network_layer = QgsVectorLayer(f'MultiLineString?crs={roads_crs}', 'pipe_network', 'memory')
+        network_layer_provider = network_layer.dataProvider()
+        network_layer_provider.addAttributes(roads_fields)
+        network_layer.updateFields()
+        network_layer.startEditing()
+
+        pipes_to_be_added = {}
+        for cluster_center, pipe_results in roads_per_cluster_center.items():
+            if pipe_results:
+                for pipe_result in pipe_results:
+                    road_ids = pipe_result['id']
+                    for road_id in road_ids:
+                        road_feature = DhpUtility.get_feature_by_id_field(self.exploded_roads_layer,
+                                                                          self.ROAD_ID_FIELD,
+                                                                          road_id)
+                        new_pipe_feature = QgsFeature()
+                        new_pipe_feature.setGeometry(road_feature.geometry())
+                        new_pipe_feature.setAttributes(road_feature.attributes())
+                        pipes_to_be_added[road_id] = new_pipe_feature
+        Logger().debug(pipes_to_be_added)
+        all_pipe_features_to_be_added = [road_feature for road_id, road_feature in pipes_to_be_added.items()]
+        network_layer_provider.addFeatures(all_pipe_features_to_be_added)
+
+        DhpUtility.create_new_field(network_layer, self.CLUSTER_CENTER_FIELD, QVariant.String)
+        for cluster_center, pipe_results in roads_per_cluster_center.items():
+            if pipe_results:
+                for pipe_result in pipe_results:
+                    road_ids = pipe_result['id']
+                    for road_id in road_ids:
+                        pipe_feature = DhpUtility.get_feature_by_id_field(network_layer, self.ROAD_ID_FIELD, road_id)
+                        DhpUtility.assign_value_to_field(network_layer, self.CLUSTER_CENTER_FIELD,
+                                                         pipe_feature, cluster_center)
+        network_layer.commitChanges()
+        network_layer.updateExtents()
+        QgsProject.instance().addMapLayer(network_layer)
 
     @staticmethod
     def generate_colors(categories, ramp_name='Spectral'):
