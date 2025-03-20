@@ -1,7 +1,7 @@
 from qgis.core import (QgsColorBrewerColorRamp, QgsRuleBasedRenderer,
                        QgsVectorLayer, QgsProject, QgsFeature,
                        QgsCategorizedSymbolRenderer, QgsSymbol, QgsRendererCategory, QgsFillSymbol,
-                       QgsLineSymbol, QgsStyle)
+                       QgsLineSymbol, QgsStyle, QgsMultiLineString, QgsGeometry)
 from PyQt5.QtCore import QVariant
 from PyQt5.QtGui import QColor
 from ..util.config import Config
@@ -16,6 +16,12 @@ class Visualization:
     BUILDING_ID_FIELD = "osm_id"
     ROAD_ID_FIELD = "osm_id"
     CLUSTER_CENTER_FIELD = "cluster_center"
+    PIPE_TYPE_FIELD = "pipe_type"
+    PIPE_OUTER_DIAMETER_FIELD = "pipe_diameter"
+    ROAD_IDS_KEY_NAME = "id"
+    ROAD_IDS_FIELD_NAME = "road_ids"
+
+    PIPE_ID_FIELD_NAME = "pipe_id"
 
     ready_to_start = False
     exploded_roads_layer = None
@@ -113,41 +119,14 @@ class Visualization:
     def create_network_layer(self, cluster_center_line_categories):
         roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in self.cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}
         roads_crs = self.exploded_roads_layer.crs().authid()
-        roads_fields = self.exploded_roads_layer.fields()
         network_layer = QgsVectorLayer(f'MultiLineString?crs={roads_crs}', 'pipe_network', 'memory')
         network_layer_provider = network_layer.dataProvider()
-        network_layer_provider.addAttributes(roads_fields)
-        network_layer.updateFields()
         network_layer.startEditing()
-
-        pipes_to_be_added = {}
-        for cluster_center, pipe_results in roads_per_cluster_center.items():
-            if pipe_results:
-                for pipe_result in pipe_results:
-                    road_ids = pipe_result['id']
-                    for road_id in road_ids:
-                        road_feature = DhpUtility.get_feature_by_id_field(self.exploded_roads_layer,
-                                                                          self.ROAD_ID_FIELD,
-                                                                          road_id)
-                        new_pipe_feature = QgsFeature()
-                        new_pipe_feature.setGeometry(road_feature.geometry())
-                        new_pipe_feature.setAttributes(road_feature.attributes())
-                        pipes_to_be_added[road_id] = new_pipe_feature
-        Logger().debug(pipes_to_be_added)
-        all_pipe_features_to_be_added = [road_feature for road_id, road_feature in pipes_to_be_added.items()]
-        network_layer_provider.addFeatures(all_pipe_features_to_be_added)
-
-        DhpUtility.create_new_field(network_layer, self.CLUSTER_CENTER_FIELD, QVariant.String)
-        for cluster_center, pipe_results in roads_per_cluster_center.items():
-            if pipe_results:
-                for pipe_result in pipe_results:
-                    road_ids = pipe_result['id']
-                    for road_id in road_ids:
-                        pipe_feature = DhpUtility.get_feature_by_id_field(network_layer, self.ROAD_ID_FIELD, road_id)
-                        DhpUtility.assign_value_to_field(network_layer, self.CLUSTER_CENTER_FIELD,
-                                                         pipe_feature, cluster_center)
+        pipes_to_be_added = self.create_pipe_features(roads_per_cluster_center, network_layer)
+        network_layer_provider.addFeatures(pipes_to_be_added)
+        DhpUtility.create_new_field(network_layer, self.PIPE_ID_FIELD_NAME, QVariant.String)
+        DhpUtility.assign_unique_ids_custom_name(network_layer, self.PIPE_ID_FIELD_NAME)
         self.render_and_repaint(network_layer, self.CLUSTER_CENTER_FIELD, cluster_center_line_categories)
-
         network_layer.commitChanges()
         network_layer.updateExtents()
         QgsProject.instance().addMapLayer(network_layer)
@@ -164,9 +143,9 @@ class Visualization:
 
     def create_categories(self, center_with_corresponding_color, symbol_type):
         categories = []
-        if isinstance(symbol_type, QgsFillSymbol):
+        if symbol_type is QgsFillSymbol:
             categories = self.create_categories_fill(center_with_corresponding_color)
-        elif isinstance(symbol_type, QgsLineSymbol):
+        elif symbol_type is QgsLineSymbol:
             categories = self.create_categories_line(center_with_corresponding_color)
         Logger().debug(f"generated categories: {categories}")
         return categories
@@ -219,3 +198,57 @@ class Visualization:
 
         Logger().debug(f"Generated colors for cluster centers: {center_colors}")
         return center_colors
+
+    def add_pipe_fields(self, pipe_result, pipe_attributes, network_layer):
+        for pipe in pipe_result:
+            for title, value in pipe.items():
+                if title not in pipe_attributes:
+                    # not pretty: extra rules for this iteration:
+                    if title not in ["id", "pipe_type"]:
+                        pipe_attributes.append(title)
+                        q_variant = QVariant(value).type()
+                        DhpUtility.add_field(network_layer, title, q_variant)
+        DhpUtility.add_field(network_layer, self.CLUSTER_CENTER_FIELD, QVariant.String)
+        DhpUtility.add_field(network_layer, self.ROAD_ID_FIELD, QVariant.String)
+        DhpUtility.add_field(network_layer, self.PIPE_TYPE_FIELD, QVariant.String)
+        DhpUtility.add_field(network_layer, self.PIPE_OUTER_DIAMETER_FIELD, QVariant.Double)
+
+    def add_pipe_field_values(self, pipe, network_layer, pipe_feature, cluster_center):
+        for entry, value in pipe.items():
+            if entry not in ["id", "pipe_type"]:
+                DhpUtility.assign_value_to_field(network_layer, entry, pipe_feature, value)
+            # sadly: some extra rules.
+            elif entry == "id":
+                road_ids = str(value)
+                DhpUtility.assign_value_to_field(network_layer, self.ROAD_ID_FIELD, pipe_feature, road_ids)
+            elif entry == "pipe_type":
+                pipe_type = str(value['type'])
+                DhpUtility.assign_value_to_field(network_layer, self.PIPE_TYPE_FIELD, pipe_feature, pipe_type)
+                outer_diameter = float(value['outer_diameter'])
+                DhpUtility.assign_value_to_field(network_layer, self.PIPE_OUTER_DIAMETER_FIELD, pipe_feature, outer_diameter)
+            DhpUtility.assign_value_to_field(network_layer, self.CLUSTER_CENTER_FIELD, pipe_feature, cluster_center)
+
+    def add_pipe_geometry(self, pipe, pipe_feature):
+        road_ids = pipe[self.ROAD_IDS_KEY_NAME]
+        pipe_multiline = QgsMultiLineString()
+        for road_id in road_ids:
+            road_feature = DhpUtility.get_feature_by_id_field(self.exploded_roads_layer, self.ROAD_ID_FIELD, road_id)
+            road_geometry = road_feature.geometry().constGet().clone()
+            pipe_multiline.addGeometry(road_geometry)
+        pipe_feature.setGeometry(QgsGeometry(pipe_multiline))
+
+    def create_pipe_features(self, pipes_per_cluster_center, network_layer):
+        pipe_attributes = []
+        pipe_features = []
+        pipe_result = DhpUtility.flatten_list(pipes_per_cluster_center.values())
+        self.add_pipe_fields(pipe_result, pipe_attributes, network_layer)
+        for cluster_center, pipes in pipes_per_cluster_center.items():
+            for pipe in pipes:
+                pipe_feature = QgsFeature()
+                pipe_feature.setFields(network_layer.fields())
+                self.add_pipe_field_values(pipe, network_layer, pipe_feature, cluster_center)
+                self.add_pipe_geometry(pipe, pipe_feature)
+                pipe_features.append(pipe_feature)
+        return pipe_features
+
+
