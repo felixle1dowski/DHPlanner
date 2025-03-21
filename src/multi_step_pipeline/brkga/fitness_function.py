@@ -287,15 +287,15 @@ class FitnessFunction:
 
     def calculate_single_trench_cost(self, pipe):
         pipe_count = pipe['pipe_type']['type']
-        outer_diameter_cm = float(pipe['pipe_type']['outer_diameter']) / 100
+        outer_diameter_m = float(pipe['pipe_type']['outer_diameter']) / 1000
         length_of_pipe = float(pipe['length'])
         trench_profile_cubic = 0.0
         if pipe_count == "uno":
-            trench_profile_cubic = (0.80 + outer_diameter_cm + 0.10) * (0.10 + outer_diameter_cm + 0.10)
+            trench_profile_cubic = (0.80 + outer_diameter_m + 0.10) * (0.10 + outer_diameter_m + 0.10)
         elif pipe_count == "duo":
-            trench_profile_cubic = (0.80 + outer_diameter_cm + 0.10) * (0.10 + outer_diameter_cm + 0.10 + outer_diameter_cm + 0.10)
+            trench_profile_cubic = (0.80 + outer_diameter_m + 0.10) * (0.10 + outer_diameter_m + 0.10 + outer_diameter_m + 0.10)
         cost_per_cubic_m = float(self.trench_cost_per_cubic_m)
         cost = cost_per_cubic_m * trench_profile_cubic * length_of_pipe
-        Logger().debug(f"calculated trenching cost for pipe with type {pipe_count} and outer diameter  {outer_diameter_cm}"
+        Logger().debug(f"calculated trenching cost for pipe with type {pipe_count} and outer diameter  {outer_diameter_m}"
                        f"with a length of {length_of_pipe}: {cost}")
         return cost
