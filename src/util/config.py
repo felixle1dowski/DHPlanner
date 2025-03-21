@@ -158,3 +158,5 @@ class Config:
     def get_load_graph(self):
         return self.config.get("load-graph").lower() == "true"
 
+    def get_trench_cost_per_cubic_m(self):
+        return self.config.get("trench-cost-per-cubic-m")

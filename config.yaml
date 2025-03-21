@@ -21,15 +21,15 @@
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
   save-graph: "False"
-  load-graph: "True"
+  load-graph: "False"
   graph-file-name: "saved_graph.json"
 
   # available strategies: none and single
   pivot-strategy: "single"
 
-  fixed-cost: 600000 # ToDo: Check that there's a value here! It has to be above 0!!
+  fixed-cost: 100000 # ToDo: Check that there's a value here! It has to be above 0!!
 
-  heat-capacity: 1500 # 250 kW für Analyse!
+  heat-capacity: 250 # 250 kW für Analyse!
   # in kW.
 
   insulation-factor: 0
@@ -37,6 +37,8 @@
 
   minimum-heat-capacity-exhaustion: 40 # Analyse: kleinste mögliche Wärmequelle
   # in percent.
+
+  trench-cost-per-cubic-m: 130.0
 
   excluded-road-fclasses:
 

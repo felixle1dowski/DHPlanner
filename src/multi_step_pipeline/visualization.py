@@ -24,6 +24,9 @@ class Visualization:
 
     PIPE_ID_FIELD_NAME = "pipe_id"
 
+    PIPE_RENDER_MIN_THICKNESS = 0.3
+    PIPE_RENDER_MAX_THICKNESS = 2.0
+
     ready_to_start = False
     exploded_roads_layer = None
     cluster_dict = None
@@ -120,10 +123,27 @@ class Visualization:
         network_layer_provider.addFeatures(pipes_to_be_added)
         DhpUtility.create_new_field(network_layer, self.PIPE_ID_FIELD_NAME, QVariant.String)
         DhpUtility.assign_unique_ids_custom_name(network_layer, self.PIPE_ID_FIELD_NAME)
+
+        # sadly double rendering doesn't work :(
+        # pipe_result = DhpUtility.flatten_list(roads_per_cluster_center.values())
+        # diameter_thicknesses = self.calculate_diameter_thickness(pipe_result)
+        # self.render_line_thickness(network_layer, diameter_thicknesses)
+
         self.render_and_repaint(network_layer, self.CLUSTER_CENTER_FIELD, cluster_center_line_categories)
         network_layer.commitChanges()
         network_layer.updateExtents()
         QgsProject.instance().addMapLayer(network_layer)
+
+    def render_line_thickness(self, network_layer, diameter_thicknesses):
+        default_symbol = QgsLineSymbol.createSimple({'width': '1.0'})
+        rule_renderer = QgsRuleBasedRenderer(default_symbol)
+        root_rule = rule_renderer.rootRule()
+        for diameter, thickness in diameter_thicknesses.items():
+            symbol = QgsLineSymbol.createSimple({'width': thickness})
+            rule = QgsRuleBasedRenderer.Rule(symbol, filterExp=f'"pipe_diameter" = {diameter}')
+            root_rule.appendChild(rule)
+        network_layer.setRenderer(rule_renderer)
+        network_layer.triggerRepaint()
 
     def render_and_repaint(self, layer, field_to_categorize_by, categories):
         renderer = QgsCategorizedSymbolRenderer(field_to_categorize_by, categories)
@@ -231,10 +251,12 @@ class Visualization:
             pipe_multiline.addGeometry(road_geometry)
         pipe_feature.setGeometry(QgsGeometry(pipe_multiline))
 
+
     def create_pipe_features(self, pipes_per_cluster_center, network_layer):
         pipe_attributes = []
         pipe_features = []
         pipe_result = DhpUtility.flatten_list(pipes_per_cluster_center.values())
+        diameter_thicknesses = self.calculate_diameter_thickness(pipe_result)
         self.add_pipe_fields(pipe_result, pipe_attributes, network_layer)
         for cluster_center, pipes in pipes_per_cluster_center.items():
             for pipe in pipes:
@@ -245,4 +267,18 @@ class Visualization:
                 pipe_features.append(pipe_feature)
         return pipe_features
 
+    def calculate_diameter_thickness(self, pipe_result):
+        pipe_diameter = set([inner_dict["pipe_type"]["outer_diameter"] for inner_dict in pipe_result if "pipe_type" in inner_dict])
+        min_diameter = min(pipe_diameter)
+        max_diameter = max(pipe_diameter)
+        diameter_thickness_dict = {}
+        for diameter in pipe_diameter:
+            diameter_thickness_dict[diameter] = self.normalize(diameter, min_diameter,
+                                                               max_diameter,
+                                                               self.PIPE_RENDER_MIN_THICKNESS,
+                                                               self.PIPE_RENDER_MAX_THICKNESS)
+        return diameter_thickness_dict
 
+    def normalize(self, value, old_min, old_max, new_min, new_max):
+        normalized_value = ((value - old_min) / (old_max - old_min)) * (new_max - new_min) + new_min
+        return normalized_value

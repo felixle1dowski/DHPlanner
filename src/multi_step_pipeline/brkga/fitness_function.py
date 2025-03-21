@@ -19,6 +19,8 @@ class FitnessFunction:
     PIVOT_STRING_SINGLE = "pivot_members_end"
     CONSTRAINT_BROKEN_PENALTY = 1_000_000_000
 
+    trench_cost_per_cubic_m = 0.0
+
     def __init__(self, instance: ClusteringInstance, id_to_node_translation_dict, pipe_diameter_catalogue, pipe_prices):
         # ToDo: Also pass dict - id: street-type-multiplicator
         self.instance = instance
@@ -27,6 +29,7 @@ class FitnessFunction:
         self.fixed_cost = Config().get_fixed_cost()
         self.pipe_diameter_catalogue = pipe_diameter_catalogue
         self.pipe_prices = pipe_prices
+        self.trench_cost_per_cubic_m = Config().get_trench_cost_per_cubic_m()
 
     def compute_fitness_for_all(self, cluster_dict):
         fitness_scores = []
@@ -52,16 +55,16 @@ class FitnessFunction:
 
         Logger().debug(f"pipe flows calculated: {pipe_mass_flows}")
         pipes, _ = self.pipes_to_construct(tree, pipe_mass_flows)
-        pipe_cost = self.calculate_pipe_cost(pipes)
+        pipe_cost_sum, pipe_cost, trench_cost = self.calculate_pipe_cost(pipes)
 
         all_demands = self.instance.get_point_demands(id_subset)
-        total_cost = self.fixed_cost + pipe_cost
+        total_cost = self.fixed_cost + pipe_cost_sum
         Logger().debug(f"all demands calculated: {all_demands}, total cost: {total_cost}")
         # zero and negative checks to make sure.
         if all_demands <= 0:
             return self.CONSTRAINT_BROKEN_PENALTY
         # ToDo: be careful!! cluster center id_subset needs to contain cluster center!!
-        fitness =  (self.fixed_cost + pipe_cost) / all_demands
+        fitness =  (self.fixed_cost + pipe_cost_sum) / all_demands
         Logger().debug(f"fitness calculated for {id_subset} with cluster center {cluster_center_id}: {fitness}")
         return fitness
 
@@ -71,12 +74,15 @@ class FitnessFunction:
         for cluster_center_id, members in cluster_dict.items():
             if cluster_center_id != "-1":
                 members.append(cluster_center_id)
-                pipe_result, supplied_power, total_pipe_cost, total_cost, fitness = self.compute_fitness_result(members,
+                (pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost,
+                 total_cost, fitness) = self.compute_fitness_result(members,
                                                cluster_center_id)
                 result = {
                     'cluster_center': cluster_center_id,
                     'pipe_result': pipe_result,
                     'supplied_power': supplied_power,
+                    'pipe_investment_cost': pipe_investment_cost,
+                    'trench_cost': trench_cost,
                     'total_pipe_cost': total_pipe_cost,
                     'total_cost': total_cost,
                     'fitness': fitness,
@@ -101,14 +107,20 @@ class FitnessFunction:
         sum_of_total_pipe_cost = 0
         sum_of_total_cost = 0
         sum_of_fitness = 0
+        sum_of_pipe_investment_cost = 0
+        sum_of_trench_cost = 0
         for value in result_list:
             sum_of_supplied_power += value['supplied_power']
             sum_of_total_pipe_cost += value['total_pipe_cost']
+            sum_of_pipe_investment_cost += value['pipe_investment_cost']
+            sum_of_trench_cost = value['trench_cost']
             sum_of_total_cost += value['total_cost']
             sum_of_fitness += value['fitness']
         return_value = {
             'sum_of_supplied_power': sum_of_supplied_power,
             'sum_of_total_pipe_cost': sum_of_total_pipe_cost,
+            'sum_of_pipe_investment_cost': sum_of_pipe_investment_cost,
+            'sum_of_trench_cost': sum_of_trench_cost,
             'sum_of_total_cost': sum_of_total_cost,
             'sum_of_fitness': sum_of_fitness
         }
@@ -118,7 +130,7 @@ class FitnessFunction:
         """Use only for end result!"""
         if len(id_subset) == 1:
             return ({}, self.instance.get_point_demands(id_subset),
-                    0, self.fixed_cost, self.fixed_cost / self.instance.get_point_demands(id_subset))
+                    0, 0, 0, self.fixed_cost, self.fixed_cost / self.instance.get_point_demands(id_subset))
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
         tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
@@ -135,16 +147,18 @@ class FitnessFunction:
             value['from_building'] = u
             value['to_building'] = v
             value['mass_flow'] = pipe_mass_flows_result[(u, v)]
-            value['pipe_cost'] = self.calculate_single_pipe_cost(value)
+            pipe_cost, trench_cost = self.calculate_single_pipe_cost(value)
+            value['pipe_cost'] = pipe_cost
+            value['trench_cost'] = trench_cost
             pipe_result.append(value)
-        total_pipe_cost = self.calculate_pipe_cost(pipes)
+        total_pipe_cost, pipe_investment_cost, trench_cost = self.calculate_pipe_cost(pipes)
         total_cost = total_pipe_cost + self.fixed_cost
         supplied_power = self.instance.get_point_demands(id_subset)
         if supplied_power <= 0:
             fitness = self.CONSTRAINT_BROKEN_PENALTY
         else:
             fitness = total_cost / supplied_power
-        return pipe_result, supplied_power, total_pipe_cost, total_cost, fitness
+        return pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost, total_cost, fitness
 
     def create_mst(self, subset_graph):
         mst = nx.minimum_spanning_tree(subset_graph, weight='weight')
@@ -246,19 +260,22 @@ class FitnessFunction:
         return pipe_type
 
     def calculate_pipe_cost(self, pipe_list):
-        pipe_costs = 0
+        pipe_costs_sum = 0
+        pipe_investment_costs = 0
+        trench_costs = 0
         for pipe in pipe_list:
-            pipe_cost = self.calculate_single_pipe_cost(pipe)
-            pipe_costs += pipe_cost
-        Logger().debug(f"Pipe cost calculated: {pipe_costs}")
-        return pipe_costs
+            pipe_cost, trench_cost = self.calculate_single_pipe_cost(pipe)
+            pipe_investment_costs += pipe_cost
+            trench_costs += trench_cost
+            pipe_cost = pipe_cost + trench_cost
+            pipe_costs_sum += pipe_cost
+        Logger().debug(f"Pipe cost calculated: sum: {pipe_costs_sum}, investment: {pipe_investment_costs}, trench: {trench_costs}")
+        return pipe_costs_sum, pipe_investment_costs, trench_costs
 
     def calculate_single_pipe_cost(self, pipe):
-        pipe_cost = 0
-        trench_cost = 0
         pipe_cost = self.calculate_single_pipe_investment_cost(pipe)
         trench_cost = self.calculate_single_trench_cost(pipe)
-        return pipe_cost + trench_cost
+        return pipe_cost, trench_cost
 
     def calculate_single_pipe_investment_cost(self, pipe):
         length = float(pipe['length'])
@@ -269,4 +286,16 @@ class FitnessFunction:
         return cost
 
     def calculate_single_trench_cost(self, pipe):
-        return 0
+        pipe_count = pipe['pipe_type']['type']
+        outer_diameter_cm = float(pipe['pipe_type']['outer_diameter']) / 100
+        length_of_pipe = float(pipe['length'])
+        trench_profile_cubic = 0.0
+        if pipe_count == "uno":
+            trench_profile_cubic = (0.80 + outer_diameter_cm + 0.10) * (0.10 + outer_diameter_cm + 0.10)
+        elif pipe_count == "duo":
+            trench_profile_cubic = (0.80 + outer_diameter_cm + 0.10) * (0.10 + outer_diameter_cm + 0.10 + outer_diameter_cm + 0.10)
+        cost_per_cubic_m = float(self.trench_cost_per_cubic_m)
+        cost = cost_per_cubic_m * trench_profile_cubic * length_of_pipe
+        Logger().debug(f"calculated trenching cost for pipe with type {pipe_count} and outer diameter  {outer_diameter_cm}"
+                       f"with a length of {length_of_pipe}: {cost}")
+        return cost
