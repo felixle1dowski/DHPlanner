@@ -16,7 +16,7 @@
     # nearest_point:
     # custom:
   method: "multi-step"
-  log-level: "debug"
+  log-level: "info"
   roads-file-name: "roads.shp"
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"

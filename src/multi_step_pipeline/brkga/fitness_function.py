@@ -113,7 +113,7 @@ class FitnessFunction:
             sum_of_supplied_power += value['supplied_power']
             sum_of_total_pipe_cost += value['total_pipe_cost']
             sum_of_pipe_investment_cost += value['pipe_investment_cost']
-            sum_of_trench_cost = value['trench_cost']
+            sum_of_trench_cost += value['trench_cost']
             sum_of_total_cost += value['total_cost']
             sum_of_fitness += value['fitness']
         return_value = {
