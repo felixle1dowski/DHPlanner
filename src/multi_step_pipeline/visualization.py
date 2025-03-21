@@ -14,6 +14,7 @@ class Visualization:
 
     COLOR_RAMP_NAME = 'Spectral'
     BUILDING_ID_FIELD = "osm_id"
+    INFO_LAYER_ID_FIELD = "osm_id"
     ROAD_ID_FIELD = "osm_id"
     CLUSTER_CENTER_FIELD = "cluster_center"
     PIPE_TYPE_FIELD = "pipe_type"
@@ -26,6 +27,7 @@ class Visualization:
     ready_to_start = False
     exploded_roads_layer = None
     cluster_dict = None
+    info_layer = None
 
 
     def start(self):
@@ -36,20 +38,21 @@ class Visualization:
             self.create_member_layer(building_categories)
             self.create_network_layer(pipe_categories)
 
-    def set_required_fields(self, exploded_roads, cluster_dict):
+    def set_required_fields(self, exploded_roads, cluster_dict, info_layer):
         self.exploded_roads_layer = exploded_roads
         self.cluster_dict = cluster_dict
+        self.info_layer = info_layer
         self.ready_to_start = True
 
     def create_member_layer(self, cluster_center_fill_categories):
         building_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
-        building_fields = building_layer.fields()
+        info_layer_fields = self.info_layer.fields()
         building_crs = building_layer.crs().authid()
 
         # Create the member layer
         member_layer = QgsVectorLayer(f'Polygon?crs={building_crs}', 'cluster_members', 'memory')
         member_layer_provider = member_layer.dataProvider()
-        member_layer_provider.addAttributes(building_fields)
+        member_layer_provider.addAttributes(info_layer_fields)
         member_layer.updateFields()
         member_layer.startEditing()
 
@@ -67,12 +70,16 @@ class Visualization:
             if not building_geometry.isGeosValid():
                 print(f"Invalid geometry for feature ID: {feature.id()}")
                 continue  # Skip invalid geometries
-
-            building_attributes = feature.attributes()
+            corresponding_info_layer_feature = DhpUtility.get_feature_by_id_field(self.info_layer,
+                                                                                  self.INFO_LAYER_ID_FIELD,
+                                                                                  DhpUtility.get_value_from_field(building_layer,
+                                                                                                                  feature,
+                                                                                                                  self.BUILDING_ID_FIELD))
+            info_layer_attributes = corresponding_info_layer_feature.attributes()
             member_feature = QgsFeature()
             member_feature.setGeometry(building_geometry)
-            member_feature.setFields(building_fields)
-            member_feature.setAttributes(building_attributes)
+            member_feature.setFields(info_layer_fields)
+            member_feature.setAttributes(info_layer_attributes)
             result = member_layer_provider.addFeature(member_feature)
             if not result:
                 Logger().error("Failed to add features to the layer.")
@@ -92,7 +99,7 @@ class Visualization:
                  inner_dict['cluster_center'] == cluster_center]
             )
             for member in cluster_members_of_cluster_center:
-                feature = DhpUtility.get_feature_by_id_field(member_layer, self.BUILDING_ID_FIELD, member)
+                feature = DhpUtility.get_feature_by_id_field(member_layer, self.INFO_LAYER_ID_FIELD, member)
                 DhpUtility.assign_value_to_field(member_layer, self.CLUSTER_CENTER_FIELD, feature, cluster_center)
 
         # Apply styling
@@ -102,19 +109,6 @@ class Visualization:
         member_layer.updateExtents()  # Update the layer's extent
         if iface:
             iface.layerTreeView().refreshLayerSymbology(member_layer.id())
-
-    # def create_unique_cluster_colors_renderer(self, labels, geometry_type, cluster_field):
-    #     unique_labels = set(labels)
-    #     categories = []
-    #     for cluster_id in unique_labels:
-    #         cluster_id = str(cluster_id)
-    #         symbol = QgsSymbol.defaultSymbol(geometry_type)
-    #         colors = QColor.fromRgb(random.randrange(0, 256), random.randrange(0, 256), random.randrange(0, 256))
-    #         symbol.setColor(colors)
-    #         category = QgsRendererCategory(cluster_id, symbol, cluster_id)
-    #         categories.append(category)
-    #     renderer = QgsCategorizedSymbolRenderer(cluster_field, categories)
-    #     return renderer
 
     def create_network_layer(self, cluster_center_line_categories):
         roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in self.cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}

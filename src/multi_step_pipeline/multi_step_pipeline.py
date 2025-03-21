@@ -365,7 +365,8 @@ class MultiStepPipeline(DHCCreationPipeline):
              'total_pipe_cost': 12145.63589973221, 'total_cost': 112145.63589973221, 'fitness': 492.53326290306893,
              'members': ['35405799', '170944156', '170944165']},
             {'cluster_center': '-1', 'members': ['170944168', '170944152']}]}
-        self.visualization.set_required_fields(preprocessing_result.exploded_roads, clustering_second_stage_results)
+        self.visualization.set_required_fields(preprocessing_result.exploded_roads, clustering_second_stage_results,
+                                               preprocessing_result.building_centroids)
         self.visualization.start()
         #
         # random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
