@@ -36,17 +36,19 @@ class FitnessFunction:
         for cluster_center_id, members in cluster_dict.items():
             if cluster_center_id != "-1":
                 members.append(cluster_center_id)
-                fitness = self.compute_fitness(members,
+                cost, demand = self.compute_fitness(members,
                                            cluster_center_id)
-                fitness_scores.append(fitness)
-        sum_of_fitness = sum(fitness_scores)
-        Logger().debug(f"fitness for permutation calculated: {sum_of_fitness}")
-        return sum_of_fitness
+                fitness_scores.append((cost, demand))
+        all_costs = [single_cost for single_cost, demand in fitness_scores]
+        all_demands = [demand for single_cost, demand in fitness_scores]
+        fitness = sum(all_costs) / sum(all_demands)
+        Logger().debug(f"fitness for permutation calculated: {fitness}")
+        return fitness
 
     def compute_fitness(self, id_subset : list, cluster_center_id):
         Logger().debug(f"Calculating fitness for {id_subset} with {cluster_center_id} as it's cluster center.")
         if len(id_subset) == 1:
-            return self.fixed_cost / self.instance.get_point_demands(id_subset)
+            return self.fixed_cost, self.instance.get_point_demands(id_subset)
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
         tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
@@ -62,11 +64,11 @@ class FitnessFunction:
         Logger().debug(f"all demands calculated: {all_demands}, total cost: {total_cost}")
         # zero and negative checks to make sure.
         if all_demands <= 0:
-            return self.CONSTRAINT_BROKEN_PENALTY
+            return self.CONSTRAINT_BROKEN_PENALTY, 1
         # ToDo: be careful!! cluster center id_subset needs to contain cluster center!!
-        fitness =  (self.fixed_cost + pipe_cost_sum) / all_demands
-        Logger().debug(f"fitness calculated for {id_subset} with cluster center {cluster_center_id}: {fitness}")
-        return fitness
+        # fitness =  (self.fixed_cost + pipe_cost_sum) / all_demands
+        Logger().debug(f"costs and demands calculated for {id_subset} with cluster center {cluster_center_id}: cost: {total_cost}, demand: {all_demands}")
+        return total_cost, all_demands
 
     def compute_fitness_for_all_result(self, cluster_dict):
         Logger().debug(f"Calculating fitness for all results in {cluster_dict}.")
@@ -75,7 +77,7 @@ class FitnessFunction:
             if cluster_center_id != "-1":
                 members.append(cluster_center_id)
                 (pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost,
-                 total_cost, fitness) = self.compute_fitness_result(members,
+                 total_cost) = self.compute_fitness_result(members,
                                                cluster_center_id)
                 result = {
                     'cluster_center': cluster_center_id,
@@ -85,7 +87,7 @@ class FitnessFunction:
                     'trench_cost': trench_cost,
                     'total_pipe_cost': total_pipe_cost,
                     'total_cost': total_cost,
-                    'fitness': fitness,
+                    'fitness': total_cost / supplied_power,
                     'members': members
                 }
                 result_for_each_cluster_list.append(result)
@@ -106,7 +108,6 @@ class FitnessFunction:
         sum_of_supplied_power = 0
         sum_of_total_pipe_cost = 0
         sum_of_total_cost = 0
-        sum_of_fitness = 0
         sum_of_pipe_investment_cost = 0
         sum_of_trench_cost = 0
         for value in result_list:
@@ -115,14 +116,13 @@ class FitnessFunction:
             sum_of_pipe_investment_cost += value['pipe_investment_cost']
             sum_of_trench_cost += value['trench_cost']
             sum_of_total_cost += value['total_cost']
-            sum_of_fitness += value['fitness']
         return_value = {
             'sum_of_supplied_power': sum_of_supplied_power,
             'sum_of_total_pipe_cost': sum_of_total_pipe_cost,
             'sum_of_pipe_investment_cost': sum_of_pipe_investment_cost,
             'sum_of_trench_cost': sum_of_trench_cost,
             'sum_of_total_cost': sum_of_total_cost,
-            'sum_of_fitness': sum_of_fitness
+            'sum_of_fitness': sum_of_total_cost / sum_of_supplied_power
         }
         return return_value
 
@@ -130,7 +130,7 @@ class FitnessFunction:
         """Use only for end result!"""
         if len(id_subset) == 1:
             return ({}, self.instance.get_point_demands(id_subset),
-                    0, 0, 0, self.fixed_cost, self.fixed_cost / self.instance.get_point_demands(id_subset))
+                    0, 0, 0, self.fixed_cost)
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
         tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
@@ -155,10 +155,8 @@ class FitnessFunction:
         total_cost = total_pipe_cost + self.fixed_cost
         supplied_power = self.instance.get_point_demands(id_subset)
         if supplied_power <= 0:
-            fitness = self.CONSTRAINT_BROKEN_PENALTY
-        else:
-            fitness = total_cost / supplied_power
-        return pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost, total_cost, fitness
+            total_cost = self.CONSTRAINT_BROKEN_PENALTY
+        return pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost, total_cost
 
     def create_mst(self, subset_graph):
         mst = nx.minimum_spanning_tree(subset_graph, weight='weight')

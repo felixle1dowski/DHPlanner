@@ -45,6 +45,8 @@ class Logger:
 
     def set_file_handlers(self):
         """Sets up file handlers with log rotation."""
+        if self.logger.hasHandlers():
+            self.logger.handlers = []
         # Use RotatingFileHandler for size-based rotation
         size_handler = RotatingFileHandler(self.LOG_FILE_PATH, maxBytes=1e8, backupCount=5)
         size_handler.setLevel(self.map_log_level(self.log_level))
@@ -58,7 +60,7 @@ class Logger:
 
         # Add handlers to the logger
         self.logger.addHandler(size_handler)
-        self.logger.addHandler(time_handler)
+        # self.logger.addHandler(time_handler)
 
     def debug(self, message):
         self.logger.debug(message, stacklevel=2)

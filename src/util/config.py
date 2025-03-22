@@ -5,6 +5,7 @@ except ImportError:
     from yaml import Loader
 from .config_exception import ConfigException
 from qgis.core import QgsCoordinateReferenceSystem
+from datetime import datetime
 
 import os
 
@@ -14,7 +15,8 @@ class Config:
                        "selection-layer-name", "heat-demands-layer-name",
                        "installation-strategy", "street-type-multipliers", "insulation-factor",
                        "log-level", "method", "crs", "distance-measuring-method", "fixed-cost", "pivot-strategy",
-                       "save-graph", "load-graph", "graph-file-name"]
+                       "save-graph", "load-graph", "graph-file-name", "decrease-max-clusters-to-find-pctg",
+                       "num-generations-to-break", "population-factor"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
@@ -22,6 +24,8 @@ class Config:
     SAVED_GRAPHS_FOLDER = os.path.join(SCRIPT_DIR, "../../saved_graphs/")
     _instance = None
     config = None
+    created_results_subfolder = False
+    results_folder_path = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -160,3 +164,30 @@ class Config:
 
     def get_trench_cost_per_cubic_m(self):
         return self.config.get("trench-cost-per-cubic-m")
+
+    def get_decrease_max_clusters_to_find_pctg(self):
+        return self.config.get("decrease-max-clusters-to-find-pctg")
+
+    def get_log_detailed_results(self):
+        return self.config.get("log-detailed-results").lower() == "true"
+
+    def get_result_folder_path(self):
+        folder_path = self.results_folder_path
+        if self.get_log_detailed_results():
+            if not self.created_results_subfolder:
+                now = datetime.now().strftime("%Y%m%d-%H%M%S")
+                dir_name = f"{now}-results"
+                folder_path = os.path.join(self.config.get("results-file-path"), dir_name)
+                os.makedirs(folder_path, exist_ok=True)
+                self.results_folder_path = folder_path
+                self.created_results_subfolder = True
+        return folder_path
+
+    def get_population_factor(self):
+        return self.config.get("population-factor")
+
+    def get_num_generations_to_break(self):
+        return self.config.get("num-generations-to-break")
+
+    def get_do_warm_start(self):
+        return self.config.get("do-warm-start").lower() == "true"

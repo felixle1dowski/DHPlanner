@@ -119,7 +119,9 @@ class ClusteringSecondStage:
         necessary_clusters = sum_of_demands / heat_capacity
         decimal_places = necessary_clusters - int(necessary_clusters)
         necessary_clusters_whole = math.floor(necessary_clusters)
-        return necessary_clusters_whole
+        reduction_percentage = Config().get_decrease_max_clusters_to_find_pctg()
+        necessary_clusters_discounted = int(necessary_clusters_whole * (1-(reduction_percentage/100)))
+        return necessary_clusters_discounted
 
     def do_kmeans_clustering(self, xys_list, weight_list, number_of_clusters):
         """do k-means clustering for a single building group. param building_centroid_features is a list of Qgis Features."""
