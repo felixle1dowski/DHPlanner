@@ -145,7 +145,11 @@ class Config:
         return self.config.get("street-type-multipliers")
 
     def get_specific_street_type_multiplier(self, fclass):
-        return self.config.get("street-type-multipliers")[fclass]
+        try:
+            multiplier = float(self.config.get("street-type-multipliers")[fclass])
+            return multiplier
+        except KeyError:
+            return None
 
     def get_insulation_factor(self):
         return self.config.get("insulation-factor")

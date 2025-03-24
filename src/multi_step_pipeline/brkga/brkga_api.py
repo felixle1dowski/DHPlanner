@@ -39,6 +39,7 @@ class BrkgaAPI:
                  graph,
                  max_capacity: float,
                  demands: {int: float},
+                 yearly_demands: {int: float},
                  num_clusters: int,
                  members: list,
                  warm_start: dict,
@@ -50,6 +51,7 @@ class BrkgaAPI:
         result = self.do_brkga_(graph,
                                                        max_capacity,
                                                        demands,
+                                                       yearly_demands,
                                                        num_clusters,
                                                        members,
                                                        warm_start,
@@ -63,6 +65,7 @@ class BrkgaAPI:
                   graph,
                   max_capacity: float,
                   demands: {int: float},
+                  yearly_demands: {int: float},
                   num_clusters: int,
                   members: list,
                   warm_start: dict,
@@ -77,7 +80,7 @@ class BrkgaAPI:
         elif pivot_element == "double":
             total_member_list.append("pivot_cluster_centers_end")
             total_member_list.append("pivot_members_end")
-        instance = ClusteringInstance(graph, max_capacity, demands, members, id_to_node_translation_dict, pivot_element)
+        instance = ClusteringInstance(graph, max_capacity, demands, yearly_demands, members, id_to_node_translation_dict, pivot_element)
         # ToDo: Fitness Function should probably be passed via dependency injection!
 
         catalogue_interpreter = PipeDiameterCatalogue()

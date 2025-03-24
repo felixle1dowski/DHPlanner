@@ -11,7 +11,8 @@ class ClusteringInstance:
     CLUSTER_ID_FIELD = "cluster_id"
     PIVOT_STRING_SINGLE = "pivot_members_end"
 
-    def __init__(self, graph: nx.Graph, max_capacity: float, demands: {str: float}, members: list,
+    def __init__(self, graph: nx.Graph, max_capacity: float, demands: {str: float}, yearly_demands: {str: float},
+                 members: list,
                  id_to_node_translation_dict: dict, pivot_element="none"):
         self.graph = graph
         self.max_capacity = max_capacity
@@ -19,6 +20,7 @@ class ClusteringInstance:
         self.members = members
         self.id_to_node_translation_dict = id_to_node_translation_dict
         self.pivot_element = pivot_element
+        self.yearly_demands = yearly_demands
 
     # ToDo: Delete?
     def get_distance(self, id1, id2):
@@ -41,6 +43,10 @@ class ClusteringInstance:
     def get_point_demand(self, point: str) -> float:
         if not point.startswith("pivot"):
             return float(self.demands[point])
+
+    def get_yearly_demand(self, point: str) -> float:
+        if not point.startswith("pivot"):
+            return float(self.yearly_demands[point])
 
     def get_number_of_nodes(self):
         number_of_nodes = len(self.demands)
@@ -81,3 +87,7 @@ class ClusteringInstance:
     def get_point_demands(self, id_subset):
         demands = sum([self.get_point_demand(cluster_member) for cluster_member in id_subset])
         return demands
+
+    def get_point_demands_per_year(self, id_subset):
+        yearly_demands = sum([self.get_yearly_demand(cluster_member) for cluster_member in id_subset])
+        return yearly_demands

@@ -18,18 +18,24 @@ class ShortestPathGraphCreator:
     line_layer = None
     access_point_lines = None
     LOG_PATH = True
+    exploded_roads = None
     DESIRED_CRS = QgsCoordinateReferenceSystem('EPSG:4839')
     function_timer = FunctionTimer()
+
+    ROAD_ID_FIELD_NAME = "osm_id"
+    ROAD_DISTANCE_FIELD_NAME = "length"
+    ROAD_TYPE_FIELD_NAME = "fclass"
 
     def __init__(self):
         pass
 
 
     @function_timer.timed_function
-    def set_required_fields(self, graph, line_layer, relevant_nodes):
+    def set_required_fields(self, graph, line_layer, relevant_nodes, exploded_roads):
         self.graph = graph
         self.line_layer = line_layer
         self.relevant_nodes = relevant_nodes
+        self.exploded_roads = exploded_roads
 
     @function_timer.timed_function
     def start(self):
@@ -111,7 +117,8 @@ class ShortestPathGraphCreator:
                 edges_in_path = [(path_info['path'][k], path_info['path'][k + 1]) for k in
                                  range(len(path_info['path']) - 1)]
                 edge_ids = [self.graph.get_edge_data(u, v).get('id') for u, v in edges_in_path]
-                shortest_path_graph.add_edge(source, target, weight=path_info['length'], edge_ids=edge_ids)
+                shortest_path_graph.add_edge(source, target, weight=path_info['length'], edge_ids=edge_ids,
+                                             street_type_cost_factor=self.calculate_street_type_cost_factor(edge_ids))
                 if self.LOG_PATH:
                     self.log_path(source, target, edge_ids)
         return shortest_path_graph
@@ -160,3 +167,40 @@ class ShortestPathGraphCreator:
         subgraph = fully_connected_graph.subgraph(nodes_to_connect)
         self.create_mst(subgraph)
         # self.visualize_mst(subgraph)
+
+    def calculate_street_type_cost_factor(self, edge_ids):
+        default_factor = 1.0
+        factor_sum = 0.0
+        distance_sum = 0.0
+        for edge_id in edge_ids:
+            if not edge_id:
+                Logger().warning(
+                    f'No street type cost factor for empty edge_id list found. Setting default value of {default_factor}')
+                return default_factor
+            multiplication_distances = []
+            length = DhpUtility.get_value_from_feature_by_id_field(self.exploded_roads,
+                                                                   self.ROAD_ID_FIELD_NAME,
+                                                                   edge_id,
+                                                                   self.ROAD_DISTANCE_FIELD_NAME)
+            road_type = DhpUtility.get_value_from_feature_by_id_field(self.exploded_roads,
+                                                                      self.ROAD_ID_FIELD_NAME,
+                                                                      edge_id,
+                                                                      self.ROAD_TYPE_FIELD_NAME)
+            road_type_factor = Config().get_specific_street_type_multiplier(road_type)
+            if not road_type_factor:
+                road_type_factor = 1.0
+                Logger().warning(f"No street type multiplier found for road_id {edge_id}, searched road type "
+                                 f" was {road_type},"
+                                 f"Setting road type factor "
+                                 f"to default value of {default_factor}")
+            multiplication_distances.append((road_type_factor, length))
+            factor_sum += road_type_factor * length
+            distance_sum += length
+        if distance_sum == 0:
+            Logger().warning(f"found distance sum of 0 for ids: {edge_ids}. Returning default value.")
+            return default_factor
+        cumulated_factor = factor_sum / distance_sum
+        Logger().debug(
+            f'added street type cost factor to road for {edge_ids}, with factor_sum of {factor_sum} and a'
+            f'distance sum of {distance_sum}. Result is {cumulated_factor}')
+        return cumulated_factor
