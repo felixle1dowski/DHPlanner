@@ -204,3 +204,13 @@ class ShortestPathGraphCreator:
             f'added street type cost factor to road for {edge_ids}, with factor_sum of {factor_sum} and a'
             f'distance sum of {distance_sum}. Result is {cumulated_factor}')
         return cumulated_factor
+
+    def get_adjacency_matrix_with_custom_weights(self, shortest_path_graph):
+        new_graph = shortest_path_graph.copy()
+        for u, v, data in new_graph.edges(data=True):
+            previous_weight = data['weight']
+            new_weight = data['weight'] * new_graph[u][v]['street_type_cost_factor']
+            new_graph.edges[u, v]['weight'] = new_weight
+            Logger().debug(f"New custom weight for path between {u} and {v} is {new_weight}, was {previous_weight}")
+        adjacency_matrix = nx.adjacency_matrix(new_graph).todense()
+        return adjacency_matrix

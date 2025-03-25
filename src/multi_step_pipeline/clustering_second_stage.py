@@ -71,6 +71,7 @@ class ClusteringSecondStage:
 
     def start(self):
         if self.ready_to_start:
+            results = []
             for cluster_id, cluster_members in self.first_stage_cluster_dict.items():
                 Logger().debug(f"currently calculating second stage results for cluster {cluster_id}")
                 temporary_solution, cluster_center_dict, number_of_clusters \
@@ -92,7 +93,8 @@ class ClusteringSecondStage:
                     id_to_node_translation_dict=self.graph_translation_dict,
                     pivot_element=Config().get_pivot_strategy()) # ToDo: Do this here or in orchestrator?
                 Logger().info(f"brkga result {brkga_result}")
-                return brkga_result
+                results.append(brkga_result)
+            return results
 
     def generate_temporary_clustering_solution(self, cluster_id, cluster_members):
         member_features_iterator = DhpUtility.get_features_by_id_field(self.building_centroids,

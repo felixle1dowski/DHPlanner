@@ -12,11 +12,11 @@
     # multi-step: heuristic method that aims to reduce needed computation resources as much as possible.
   distance-measuring-method: "custom"
   # possible methods:
-    # centroids:
-    # nearest_point:
-    # custom:
+    # centroids: Use euclidean distance between building centroids
+    # nearest_point: Use nearest points of geometries
+    # custom: Use graph
   method: "multi-step"
-  log-level: "info"
+  log-level: "debug"
   roads-file-name: "roads.shp"
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
@@ -38,7 +38,7 @@
   insulation-factor: 0
   # insulation decreases heating demand by the specified percentage!
   minimum-heat-capacity-exhaustion: 40 # Analyse: kleinste mögliche Wärmequelle
-  decrease-max-clusters-to-find-pctg: 50
+  decrease-max-clusters-to-find-pctg: 15
   # in percent.
 
 
@@ -46,9 +46,12 @@
   log-detailed-results: "True"
   results-file-path: "/Users/felixlewandowski/Documents/ba_results"
 
+  # DBSCAN parameter
+  eps: 20.0
+
   # brkga parameters
-  num-generations-to-break: 100
-  population-factor: 10
+  num-generations-to-break: 5
+  population-factor: 1
   do-warm-start: "False"
 
   excluded-road-fclasses:
@@ -217,30 +220,30 @@
     conta: "excluded"
 
   street-type-multipliers:
-      bridleway: 1.0
-      cycleway: 1.0
-      footway: 1.0
-      living_street: 1.0
-      motorway: 1.0
-      motorway_link: 1.0
-      path: 1.0
-      pedestrian: 1.0
-      primary: 1.0
-      primary_link: 1.0
-      residential: 1.0
-      secondary: 1.0
-      secondary_link: 1.0
-      service: 1.0
-      steps: 1.0
-      tertiary: 1.0
-      tertiary_link: 1.0
-      track: 1.0
-      track_grade1: 1.0
-      track_grade2: 1.0
-      track_grade3: 1.0
-      track_grade4: 1.0
-      track_grade5: 1.0
-      trunk: 1.0
-      trunk_link: 1.0
-      unclassified: 1.0
-      unknown: 1.0
+      bridleway: 2.0
+      cycleway: 2.0
+      footway: 2.0
+      living_street: 2.0
+      motorway: 2.0
+      motorway_link: 2.0
+      path: 2.0
+      pedestrian: 2.0
+      primary: 2.0
+      primary_link: 2.0
+      residential: 2.0
+      secondary: 2.0
+      secondary_link: 2.0
+      service: 2.0
+      steps: 2.0
+      tertiary: 2.0
+      tertiary_link: 2.0
+      track: 2.0
+      track_grade1: 2.0
+      track_grade2: 2.0
+      track_grade3: 2.0
+      track_grade4: 2.0
+      track_grade5: 2.0
+      trunk: 2.0
+      trunk_link: 2.0
+      unclassified: 2.0
+      unknown: 2.0

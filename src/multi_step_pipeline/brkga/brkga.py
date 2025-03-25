@@ -43,6 +43,9 @@ class Brkga:
         )
         if self.do_warm_start:
             Logger().info("Initializing initial solution with warm start.")
+            warm_start_solution = self.decoder.fitness_function.compute_fitness_for_all_result(self.initial_solution)
+            Logger().info(f"calculated warm start solution {warm_start_solution}")
+            self.save_result(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), warm_start_solution, 0)
             brkga.set_initial_population([self.initial_solution])
         else:
             Logger().info("Not doing a warm start")

@@ -16,7 +16,7 @@ class Config:
                        "installation-strategy", "street-type-multipliers", "insulation-factor",
                        "log-level", "method", "crs", "distance-measuring-method", "fixed-cost", "pivot-strategy",
                        "save-graph", "load-graph", "graph-file-name", "decrease-max-clusters-to-find-pctg",
-                       "num-generations-to-break", "population-factor"]
+                       "num-generations-to-break", "population-factor", "eps"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
@@ -70,6 +70,8 @@ class Config:
         if self.config.get("save-graph") not in ["True", "False"]:
             raise ConfigException(f"Invalid entry for save-graph! has to be 'True' or 'False' is "
                                   f"{self.config.get('save-graph')}")
+        if self.config.get("eps") <= 0.0:
+            raise ConfigException(f"Eps is invalid. Needs to be greater than or equal to 0. But is {self.config.get('eps')}")
 
     def get_selection_layer_name(self):
         return self.config.get("selection-layer-name")
@@ -195,3 +197,6 @@ class Config:
 
     def get_do_warm_start(self):
         return self.config.get("do-warm-start").lower() == "true"
+
+    def get_eps(self):
+        return self.config.get("eps")

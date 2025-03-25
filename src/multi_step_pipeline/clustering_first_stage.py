@@ -40,7 +40,6 @@ class ClusteringFirstStage:
     CLUSTER_RESULTS_CLUSTER_COL_NAME = 'cluster'
     CLUSTER_RESULTS_CLUSTER_COL_N = 0
     HEAT_DEMAND_FIELD_NAME = "peak_demand"
-    EPS = 200
     MIN_SAMPLES = 1
 
     def __init__(self, distance_measuring_method: str):
@@ -49,10 +48,12 @@ class ClusteringFirstStage:
 
     def set_required_fields(self, building_centroids_layer,
                             adjacency_matrix=None, id_labels=None):
+        Logger().debug(f"Adjacency Matrix set to: {adjacency_matrix}")
         self.building_centroids = building_centroids_layer
         self.buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
         if adjacency_matrix is not None:
             self.adjacency_matrix = adjacency_matrix
+            Logger().debug(f'Adjacency matrix:\n{adjacency_matrix}')
         if id_labels is not None:
             self.id_labels = id_labels
         if adjacency_matrix is not None and id_labels is None \
@@ -81,7 +82,6 @@ class ClusteringFirstStage:
                 elif self.distance_measuring_method == "custom" and self.adjacency_matrix is not None and self.id_labels is not None:
                     distance_df = self.construct_distance_matrix_df(self.adjacency_matrix, self.id_labels)
                     cluster_weights_custom = self.map_cluster_weights_to_labels(self.id_labels, cluster_weights)
-
                 else:
                     raise Exception("Invalid parameters in first stage clustering.")
 
@@ -261,7 +261,7 @@ class ClusteringFirstStage:
         weights = [point['weight'] for point in data]
         features = np.array([[point['x'], point['y']] for point in data])
 
-        dbscan = DBSCAN(eps=self.EPS, min_samples=min_samples)
+        dbscan = DBSCAN(eps=Config().get_eps(), min_samples=min_samples)
         clusters = dbscan.fit_predict(features, sample_weight=sample_weights)
         columns = [self.CLUSTER_RESULTS_CLUSTER_COL_NAME]
         labels = ids
@@ -274,7 +274,7 @@ class ClusteringFirstStage:
 
     @function_timer.timed_function
     def do_clustering_with_custom_metric(self, distance_df, min_samples, sample_weights):
-        db = DBSCAN(eps=self.EPS, min_samples=min_samples, metric="precomputed")
+        db = DBSCAN(eps=Config().get_eps(), min_samples=min_samples, metric="precomputed")
         clusters = db.fit_predict(distance_df.values, sample_weight=sample_weights)
         labels = distance_df.index
         columns = [self.CLUSTER_RESULTS_CLUSTER_COL_NAME]
