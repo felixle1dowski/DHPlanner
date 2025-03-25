@@ -43,18 +43,17 @@ class Brkga:
         )
         if self.do_warm_start:
             Logger().info("Initializing initial solution with warm start.")
-            warm_start_solution = self.decoder.fitness_function.compute_fitness_for_all_result(self.initial_solution)
+            warm_start_solution = self.get_result_for_chromosome(self.initial_solution)
             Logger().info(f"calculated warm start solution {warm_start_solution}")
-            self.save_result(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), warm_start_solution, 0)
+            Logger().info(f"Decoded warm start: {self.decoder.decode_chromosome(self.initial_solution)}")
+            self.save_result(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), warm_start_solution, -1)
             brkga.set_initial_population([self.initial_solution])
         else:
             Logger().info("Not doing a warm start")
         brkga.initialize()
         Logger().info("Brkga initialized")
         best_chromosome = self.evolve_with_stop_criterion(brkga)
-
         # brkga.evolve(self.num_generations)
-
         best_distance = brkga.get_best_fitness()
         Logger().info(f"best distance sum: {best_distance}")
         end_result = self.get_result_for_chromosome(best_chromosome)

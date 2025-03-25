@@ -57,15 +57,15 @@ class MultiStepPipeline(DHCCreationPipeline):
         else:
             self.clustering_first_stage.set_required_fields(preprocessing_result.building_centroids)
         clustering_first_stage_results = self.clustering_first_stage.start()
-        # self.clustering_second_stage.set_required_fields(shortest_path_graph=shortest_paths,
-        #                                                  first_stage_cluster_dict=clustering_first_stage_results,
-        #                                                  # ToDo: This is only in because of sloppy visualization. Remove!!
-        #                                                  buildings_layer=QgsProject.instance().mapLayersByName(
-        #                                                      Config().get_buildings_layer_name())[0],
-        #                                                  building_centroids_layer=preprocessing_result.building_centroids,
-        #                                                  feasible_solution_creator=self.feasible_solution_creator,
-        #                                                  graph_translation_dict=building_to_point_dict)
-        # clustering_second_stage_results = self.clustering_second_stage.start()
+        self.clustering_second_stage.set_required_fields(shortest_path_graph=shortest_paths,
+                                                         first_stage_cluster_dict=clustering_first_stage_results,
+                                                         # ToDo: This is only in because of sloppy visualization. Remove!!
+                                                         buildings_layer=QgsProject.instance().mapLayersByName(
+                                                             Config().get_buildings_layer_name())[0],
+                                                         building_centroids_layer=preprocessing_result.building_centroids,
+                                                         feasible_solution_creator=self.feasible_solution_creator,
+                                                         graph_translation_dict=building_to_point_dict)
+        clustering_second_stage_results = self.clustering_second_stage.start()
 
         #     clustering_second_stage_results = {
         #     "sums": {
@@ -826,14 +826,9 @@ class MultiStepPipeline(DHCCreationPipeline):
         #         }
         #     ]
         # }
-        # self.visualization.set_required_fields(preprocessing_result.exploded_roads, clustering_second_stage_results,
-        #                                        preprocessing_result.building_centroids)
-        # self.visualization.start()
-        #
-        # random_items = dict(random.sample(building_to_point_dict.items(), 5)).values()
-        # ToDo: testing...
-        # self.mst_creator.visualize_subgraph_mst(shortest_paths, random_items)
-        # Logger().info("Finished MST Creation.")
+        self.visualization.set_required_fields(preprocessing_result.exploded_roads, clustering_second_stage_results,
+                                               preprocessing_result.building_centroids)
+        self.visualization.start()
 
     def timed_wrapper(self, function_call, *args, **kwargs):
         function_name = self.get_fully_qualified_name(function_call)

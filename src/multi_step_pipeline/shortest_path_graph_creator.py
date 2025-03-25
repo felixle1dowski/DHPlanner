@@ -40,7 +40,8 @@ class ShortestPathGraphCreator:
     @function_timer.timed_function
     def start(self):
         if not Config().get_load_graph():
-            shortest_path_graph = self.construct_shortest_paths_graph(self.relevant_nodes)
+            is_custom_weight_calculation_necessary = self.is_custom_weight_calculation_necessary()
+            shortest_path_graph = self.construct_shortest_paths_graph(self.relevant_nodes, is_custom_weight_calculation_necessary)
             if Config().get_save_graph():
                 serialized_graph = self.serialize_graph(shortest_path_graph)
                 file_name = Config().get_saved_graph_path()
@@ -94,7 +95,7 @@ class ShortestPathGraphCreator:
         return graph
 
     @function_timer.timed_function
-    def construct_shortest_paths_graph(self, relevant_nodes):
+    def construct_shortest_paths_graph(self, relevant_nodes, is_custom_weight_calculation_necessary):
         shortest_path_graph = nx.Graph()
         shortest_paths = {}
         for i in range(len(relevant_nodes)):
@@ -118,7 +119,8 @@ class ShortestPathGraphCreator:
                                  range(len(path_info['path']) - 1)]
                 edge_ids = [self.graph.get_edge_data(u, v).get('id') for u, v in edges_in_path]
                 shortest_path_graph.add_edge(source, target, weight=path_info['length'], edge_ids=edge_ids,
-                                             street_type_cost_factor=self.calculate_street_type_cost_factor(edge_ids))
+                                             street_type_cost_factor=self.calculate_street_type_cost_factor(edge_ids,
+                                                                                                            is_custom_weight_calculation_necessary))
                 if self.LOG_PATH:
                     self.log_path(source, target, edge_ids)
         return shortest_path_graph
@@ -168,8 +170,11 @@ class ShortestPathGraphCreator:
         self.create_mst(subgraph)
         # self.visualize_mst(subgraph)
 
-    def calculate_street_type_cost_factor(self, edge_ids):
+    def calculate_street_type_cost_factor(self, edge_ids, is_custom_weight_calculation_necessary):
         default_factor = 1.0
+        if not is_custom_weight_calculation_necessary:
+            Logger().debug(f"no custom weight calculation necessary for {edge_ids}. Using {default_factor}.")
+            return default_factor
         factor_sum = 0.0
         distance_sum = 0.0
         for edge_id in edge_ids:
@@ -214,3 +219,10 @@ class ShortestPathGraphCreator:
             Logger().debug(f"New custom weight for path between {u} and {v} is {new_weight}, was {previous_weight}")
         adjacency_matrix = nx.adjacency_matrix(new_graph).todense()
         return adjacency_matrix
+
+    def is_custom_weight_calculation_necessary(self):
+        all_street_type_entries = Config().get_street_type_multipliers()
+        all_multipliers = [multiplier for fclass, multiplier in all_street_type_entries.items()]
+        custom_weight_calculation_necessary = any(multiplier != 1.0 for multiplier in all_multipliers)
+        Logger().debug(f"Is a custom weight calculation necessary? {custom_weight_calculation_necessary}.")
+        return custom_weight_calculation_necessary

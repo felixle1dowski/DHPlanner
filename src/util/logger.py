@@ -48,19 +48,12 @@ class Logger:
         if self.logger.hasHandlers():
             self.logger.handlers = []
         # Use RotatingFileHandler for size-based rotation
-        size_handler = RotatingFileHandler(self.LOG_FILE_PATH, maxBytes=1e8, backupCount=5)
+        size_handler = RotatingFileHandler(self.LOG_FILE_PATH, maxBytes=1e8, backupCount=4)
         size_handler.setLevel(self.map_log_level(self.log_level))
         logging_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s  [File: %(filename)s, Line: %(lineno)d, Function: %(funcName)s]'
         size_handler.setFormatter(logging.Formatter(logging_format))
-
-        # Use TimedRotatingFileHandler for time-based rotation (daily)
-        time_handler = TimedRotatingFileHandler(self.LOG_FILE_PATH + ".time", when="midnight", interval=1, backupCount=7)
-        time_handler.setLevel(logging.WARNING)
-        time_handler.setFormatter(logging.Formatter(logging_format))
-
         # Add handlers to the logger
         self.logger.addHandler(size_handler)
-        # self.logger.addHandler(time_handler)
 
     def debug(self, message):
         self.logger.debug(message, stacklevel=2)
