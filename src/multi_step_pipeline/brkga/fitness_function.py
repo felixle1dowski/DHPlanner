@@ -30,6 +30,7 @@ class FitnessFunction:
         self.pipe_diameter_catalogue = pipe_diameter_catalogue
         self.pipe_prices = pipe_prices
         self.trench_cost_per_cubic_m = Config().get_trench_cost_per_cubic_m()
+        self.life_time_of_heating_source = Config().get_life_time_of_heating_source()
 
     def compute_fitness_for_all(self, cluster_dict):
         fitness_scores = []
@@ -59,7 +60,7 @@ class FitnessFunction:
         pipes, _ = self.pipes_to_construct(tree, pipe_mass_flows)
         pipe_cost_sum, pipe_cost, trench_cost = self.calculate_pipe_cost(pipes)
 
-        all_demands = self.instance.get_point_demands_per_year(id_subset)
+        all_demands = self.instance.get_point_demands_per_year(id_subset) * self.life_time_of_heating_source
         total_cost = self.fixed_cost + pipe_cost_sum
         Logger().debug(f"all demands calculated: {all_demands}, total cost: {total_cost}")
         # zero and negative checks to make sure.
@@ -153,7 +154,7 @@ class FitnessFunction:
             pipe_result.append(value)
         total_pipe_cost, pipe_investment_cost, trench_cost = self.calculate_pipe_cost(pipes)
         total_cost = total_pipe_cost + self.fixed_cost
-        supplied_power = self.instance.get_point_demands_per_year(id_subset)
+        supplied_power = self.instance.get_point_demands_per_year(id_subset) * self.life_time_of_heating_source
         if supplied_power <= 0:
             total_cost = self.CONSTRAINT_BROKEN_PENALTY
         return pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost, total_cost

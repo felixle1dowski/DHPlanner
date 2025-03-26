@@ -32,6 +32,7 @@ class Brkga:
         self.brkga_params.population_size = (self.instance.get_number_of_nodes() * Config().get_population_factor())
         self.initial_solution = initial_solution
         self.do_warm_start = Config().get_do_warm_start()
+        self.timestamp_dict = {}
 
     def do_brkga(self):
         brkga = BrkgaMpIpr(
@@ -44,9 +45,11 @@ class Brkga:
         if self.do_warm_start:
             Logger().info("Initializing initial solution with warm start.")
             warm_start_solution = self.get_result_for_chromosome(self.initial_solution)
+            warm_start_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+            self.timestamp_dict[-1] = warm_start_time
             Logger().info(f"calculated warm start solution {warm_start_solution}")
             Logger().info(f"Decoded warm start: {self.decoder.decode_chromosome(self.initial_solution)}")
-            self.save_result(datetime.now().strftime("%Y-%m-%d_%H:%M:%S"), warm_start_solution, -1)
+            self.save_result(datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f"), warm_start_solution, -1)
             brkga.set_initial_population([self.initial_solution])
         else:
             Logger().info("Not doing a warm start")
@@ -77,17 +80,20 @@ class Brkga:
         Logger().info(f"{iteration}")
         best_chromosome = self.get_result_for_chromosome(brkga.get_best_chromosome())
         best_cost = brkga.get_best_fitness()
-        current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
         Logger().info(f"{current_time} intermediate result: {best_chromosome}")
         self.save_result(current_time, best_chromosome, iteration)
         run = True
         start_time = time.time()
+        self.timestamp_dict[iteration] = current_time
         # Evolving:
         Logger().info(f"{datetime.now()} Evolving...")
         while run:
             iteration += 1
             brkga.evolve()
             fitness = brkga.get_best_fitness()
+            current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+            self.timestamp_dict[iteration] = current_time
             if fitness < best_cost:
                 update_offset = iteration - last_update_iteration
                 if large_offset < update_offset:
@@ -97,7 +103,6 @@ class Brkga:
                 best_chromosome = brkga.get_best_chromosome()
                 Logger().info("new best chromosome found!")
                 best_result = self.get_result_for_chromosome(best_chromosome)
-                current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
                 Logger().info(f"{current_time} intermediate result: {best_result}")
                 self.save_result(current_time, best_result, iteration)
             iter_without_improvement = iteration - last_update_iteration
@@ -106,10 +111,11 @@ class Brkga:
                 break
         total_elapsed_time = time.time() - start_time
         total_num_iterations = iteration
-        current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
         Logger().info(f"{current_time} Total elapsed time: {total_elapsed_time}")
         Logger().info(f"Total number of iterations: {total_num_iterations}")
         end_result = self.get_result_for_chromosome(best_chromosome)
+        self.save_times(self.timestamp_dict)
         self.save_result(current_time, end_result, iteration)
         return best_chromosome
 
@@ -131,3 +137,7 @@ class Brkga:
                                   number_of_elite_parents=number_of_elite_parents,
                                   number_of_desired_clusters=amount_of_clusters,
                                   result_dict=result_dict)
+
+    def save_times(self, timestamp_dict):
+        ResultsSaver.save_result(file_name=f"times_per_generation",
+                                 timestamps=timestamp_dict)

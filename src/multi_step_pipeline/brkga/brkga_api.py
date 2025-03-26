@@ -6,6 +6,7 @@ from brkga_mp_ipr.enums import Sense
 
 from ...util.not_yet_implemented_exception import NotYetImplementedException
 from ...util.logger import Logger
+from ...util.config import Config
 from .clustering_instance import ClusteringInstance
 from .clustering_decoder import ClusteringDecoder
 from .fitness_function import FitnessFunction
@@ -19,7 +20,7 @@ class BrkgaAPI:
     EXCLUDED_KEY = -1
     MEMBER_LIST_KEY = "member_list"
     NUM_GENERATIONS = 2 # this is low. See: Praseyeto (2015).
-    SEED = 1
+    SEED_DEFAULT = 1
     # ToDo: Set in Config!
 
     CLUSTER_CENTER_KEY = "cluster_center"
@@ -32,7 +33,7 @@ class BrkgaAPI:
     PRICES_JSON_PATH = os.path.join(SCRIPT_DIR, "./pipe_prices/SDR_11_price.json")
 
     def __init__(self):
-        pass
+        self.seed_to_use = 0
 
     # ToDo: Validate members and distance matrix. They need to have the same dimensions!
     def do_brkga(self,
@@ -95,8 +96,11 @@ class BrkgaAPI:
                                                                             catalogue_df,
                                                                             pipe_prices), pivot_element)
         initial_solution = self.encode_warm_start(warm_start, total_member_list, pivot_element)
+        self.seed_to_use = self.SEED_DEFAULT
+        if Config().get_use_random_seed():
+            self.seed_to_use = random.randint(1,1_000_000_000)
         brkga = Brkga(instance=instance,
-                      seed=self.SEED,
+                      seed=self.seed_to_use,
                       num_generations=self.NUM_GENERATIONS,
                       sense=Sense.MINIMIZE,
                       decoder=decoder,
@@ -105,7 +109,6 @@ class BrkgaAPI:
         return result
 
     def encode_warm_start(self, warm_start, total_member_list : list, pivot_element="none"):
-        random.seed(self.SEED)
         cluster_ids = []
         members = []
         for cluster_id, inner_dict in warm_start.items():

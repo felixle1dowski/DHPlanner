@@ -28,7 +28,7 @@
   pivot-strategy: "single"
 
   fixed-cost: 100000 # ToDo: Check that there's a value here! It has to be above 0!!
-  life-time-in-years: 30
+  life-time-in-years: 30 # of heating source
   heat-capacity: 250 # 250 kW für Analyse!
   # in kW.
 
@@ -37,10 +37,9 @@
 
   insulation-factor: 0
   # insulation decreases heating demand by the specified percentage!
-  minimum-heat-capacity-exhaustion: 40 # Analyse: kleinste mögliche Wärmequelle
-  decrease-max-clusters-to-find-pctg: 15
+  minimum-heat-capacity-exhaustion: 70 # Analyse: kleinste mögliche Wärmequelle
+  decrease-max-clusters-to-find-pctg: 0
   # in percent.
-
 
   # result logging
   log-detailed-results: "True"
@@ -50,9 +49,10 @@
   eps: 200.0
 
   # brkga parameters
-  num-generations-to-break: 5
-  population-factor: 1
+  num-generations-to-break: 100
+  population-factor: 3
   do-warm-start: "True"
+  use-random-seed: "True"
 
   excluded-road-fclasses:
 

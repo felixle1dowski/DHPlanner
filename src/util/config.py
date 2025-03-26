@@ -16,7 +16,7 @@ class Config:
                        "installation-strategy", "street-type-multipliers", "insulation-factor",
                        "log-level", "method", "crs", "distance-measuring-method", "fixed-cost", "pivot-strategy",
                        "save-graph", "load-graph", "graph-file-name", "decrease-max-clusters-to-find-pctg",
-                       "num-generations-to-break", "population-factor", "eps"]
+                       "num-generations-to-break", "population-factor", "eps", "life-time-in-years"]
     SCRIPT_DIR = os.path.dirname(__file__)
     # config file has to be placed in plugin folder!
     CONFIG_FILE_PATH = os.path.join(SCRIPT_DIR, "../../config.yaml")
@@ -200,3 +200,9 @@ class Config:
 
     def get_eps(self):
         return self.config.get("eps")
+
+    def get_life_time_of_heating_source(self):
+        return int(self.config.get("life-time-in-years"))
+
+    def get_use_random_seed(self):
+        return self.config.get("use-random-seed").lower() == "true"
