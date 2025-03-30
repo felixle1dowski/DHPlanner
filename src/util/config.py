@@ -184,7 +184,13 @@ class Config:
                 now = datetime.now().strftime("%Y%m%d-%H%M%S")
                 dir_name = f"{now}-results"
                 folder_path = os.path.join(self.config.get("results-file-path"), dir_name)
-                os.makedirs(folder_path, exist_ok=True)
+                try:
+                    os.makedirs(folder_path, exist_ok=False)
+                except OSError:
+                    now = datetime.now().strftime("%Y%m%d-%H%M%S")
+                    dir_name = f"{now}-results"
+                    folder_path = os.path.join(self.config.get("results-file-path"), dir_name)
+                    os.makedirs(folder_path, exist_ok=True)
                 self.results_folder_path = folder_path
                 self.created_results_subfolder = True
         return folder_path

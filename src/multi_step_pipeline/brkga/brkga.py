@@ -29,7 +29,7 @@ class Brkga:
         self.seed = seed
         self.num_generations = num_generations
         self.brkga_params, _ = load_configuration(self.CONFIG_FILE_PATH)
-        self.brkga_params.population_size = (self.instance.get_number_of_nodes() * Config().get_population_factor())
+        self.brkga_params.population_size = int(self.instance.get_number_of_nodes() * Config().get_population_factor())
         self.initial_solution = initial_solution
         self.do_warm_start = Config().get_do_warm_start()
         self.timestamp_dict = {}
@@ -128,8 +128,11 @@ class Brkga:
         number_of_parents = self.brkga_params.total_parents
         number_of_elite_parents = self.brkga_params.num_elite_parents
         ResultsSaver.save_result(file_name=f"brkga_generation_{num_generations}",
-                                 time=timestamp, current_generation=current_generation,
-                                 do_warm_start=str(self.do_warm_start),
+                                  time=timestamp, random_seed=self.seed,
+                                  population_factor=Config().get_population_factor(),
+                                  pivot_element=self.decoder.pivot_element,
+                                  current_generation=current_generation,
+                                  do_warm_start=str(self.do_warm_start),
                                   population_size=population_size,
                                   elite_percentage=elite_percentage,
                                   mutant_percentage=mutant_percentage,

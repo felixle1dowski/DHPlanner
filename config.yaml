@@ -38,7 +38,7 @@
   insulation-factor: 0
   # insulation decreases heating demand by the specified percentage!
   minimum-heat-capacity-exhaustion: 70 # Analyse: kleinste mögliche Wärmequelle
-  decrease-max-clusters-to-find-pctg: 0
+  decrease-max-clusters-to-find-pctg: 30
   # in percent.
 
   # result logging
@@ -51,7 +51,7 @@
   # brkga parameters
   num-generations-to-break: 100
   population-factor: 3
-  do-warm-start: "True"
+  do-warm-start: "False"
   use-random-seed: "True"
 
   excluded-road-fclasses:
