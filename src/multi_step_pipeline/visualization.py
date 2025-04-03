@@ -31,18 +31,15 @@ class Visualization:
     pipe_layer = None
     cluster_list = None
     info_layer = None
-    cluster_dict_number = 0
 
 
     def start(self):
         if self.ready_to_start:
-            for cluster_dict in self.cluster_list:
-                cluster_center_colors_dict = self.generate_color_per_cluster_center(cluster_dict)
-                building_categories = self.create_categories(cluster_center_colors_dict, QgsFillSymbol)
-                pipe_categories = self.create_categories(cluster_center_colors_dict, QgsLineSymbol)
-                self.create_member_layer(building_categories, cluster_dict)
-                self.create_network_layer(pipe_categories, cluster_dict)
-                self.cluster_dict_number += 1
+            cluster_center_colors_dict = self.generate_color_per_cluster_center(self.cluster_list)
+            building_categories = self.create_categories(cluster_center_colors_dict, QgsFillSymbol)
+            pipe_categories = self.create_categories(cluster_center_colors_dict, QgsLineSymbol)
+            self.create_member_layer(building_categories, self.cluster_list)
+            self.create_network_layer(pipe_categories, self.cluster_list)
 
     def set_required_fields(self, pipe_layer, cluster_list, info_layer):
         self.pipe_layer = pipe_layer
@@ -50,13 +47,13 @@ class Visualization:
         self.info_layer = info_layer
         self.ready_to_start = True
 
-    def create_member_layer(self, cluster_center_fill_categories, cluster_dict):
+    def create_member_layer(self, cluster_center_fill_categories, cluster_list):
         building_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
         info_layer_fields = self.info_layer.fields()
         building_crs = building_layer.crs().authid()
 
         # Create the member layer
-        member_layer = QgsVectorLayer(f'Polygon?crs={building_crs}', f'cluster_members{self.cluster_dict_number}', 'memory')
+        member_layer = QgsVectorLayer(f'Polygon?crs={building_crs}', f'cluster_members', 'memory')
         member_layer_provider = member_layer.dataProvider()
         member_layer_provider.addAttributes(info_layer_fields)
         member_layer.updateFields()
@@ -64,9 +61,14 @@ class Visualization:
 
         # Get all members from the cluster dictionary
         complete_member_list = []
-        for entry in cluster_dict['clusters']:
-            members = entry['members']
-            complete_member_list += members
+        for entry in cluster_list:
+            for inner_dict in entry['clusters']:
+                members = inner_dict['members']
+                complete_member_list += members
+
+        # for entry in cluster_dict['clusters']:
+        #     members = entry['members']
+        #     complete_member_list += members
 
         # Get features from the building layer
         building_features = DhpUtility.get_features_by_id_field(building_layer, self.BUILDING_ID_FIELD,
@@ -98,16 +100,20 @@ class Visualization:
 
         # Add cluster center field and assign values
         DhpUtility.create_new_field(member_layer, self.CLUSTER_CENTER_FIELD, QVariant.String)
-        all_cluster_centers = [inner_dict['cluster_center'] for inner_dict in cluster_dict['clusters']]
+        all_cluster_centers = []
+        for entry in cluster_list:
+            for inner_dict in entry['clusters']:
+                all_cluster_centers.append(inner_dict['cluster_center'])
+        # all_cluster_centers = [inner_dict['cluster_center'] for inner_dict in cluster_dict['clusters']]
         for cluster_center in all_cluster_centers:
-            cluster_members_of_cluster_center = DhpUtility.flatten_list(
-                [inner_dict['members'] for inner_dict in cluster_dict['clusters'] if
-                 inner_dict['cluster_center'] == cluster_center]
-            )
-            for member in cluster_members_of_cluster_center:
-                feature = DhpUtility.get_feature_by_id_field(member_layer, self.INFO_LAYER_ID_FIELD, member)
-                DhpUtility.assign_value_to_field(member_layer, self.CLUSTER_CENTER_FIELD, feature, cluster_center)
-
+            for entry in cluster_list:
+                cluster_members_of_cluster_center = DhpUtility.flatten_list(
+                    [inner_dict['members'] for inner_dict in entry['clusters'] if
+                     inner_dict['cluster_center'] == cluster_center]
+                )
+                for member in cluster_members_of_cluster_center:
+                    feature = DhpUtility.get_feature_by_id_field(member_layer, self.INFO_LAYER_ID_FIELD, member)
+                    DhpUtility.assign_value_to_field(member_layer, self.CLUSTER_CENTER_FIELD, feature, cluster_center)
         # Apply styling
         self.render_and_repaint(member_layer, self.CLUSTER_CENTER_FIELD, cluster_center_fill_categories)
         # Commit changes and refresh the layer
@@ -116,8 +122,13 @@ class Visualization:
         if iface:
             iface.layerTreeView().refreshLayerSymbology(member_layer.id())
 
-    def create_network_layer(self, cluster_center_line_categories, cluster_dict):
-        roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}
+    def create_network_layer(self, cluster_center_line_categories, cluster_list):
+        roads_per_cluster_center = {}
+        for entry in cluster_list:
+            for cluster in entry['clusters']:
+                if cluster['cluster_center'] != "-1":
+                    roads_per_cluster_center[cluster['cluster_center']] = cluster['pipe_result']
+        # roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}
         roads_crs = self.pipe_layer.crs().authid()
         network_layer = QgsVectorLayer(f'MultiLineString?crs={roads_crs}', 'pipe_network', 'memory')
         network_layer_provider = network_layer.dataProvider()
@@ -153,8 +164,11 @@ class Visualization:
         layer.setRenderer(renderer)
         layer.triggerRepaint()
 
-    def generate_color_per_cluster_center(self, cluster_dict):
-        cluster_centers = [inner_dict['cluster_center'] for inner_dict in cluster_dict['clusters']]
+    def generate_color_per_cluster_center(self, cluster_list):
+        cluster_centers = []
+        for inner_list in cluster_list:
+            for cluster in inner_list['clusters']:
+                cluster_centers.append(cluster['cluster_center'])
         cluster_center_colors_dict = Visualization.generate_colors(cluster_centers)
         return cluster_center_colors_dict
 
