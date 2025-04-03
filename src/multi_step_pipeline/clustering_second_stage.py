@@ -73,7 +73,8 @@ class ClusteringSecondStage:
         if self.ready_to_start:
             results = []
             for cluster_id, cluster_members in self.first_stage_cluster_dict.items():
-                Logger().debug(f"currently calculating second stage results for cluster {cluster_id}")
+                # Logger().debug(f"currently calculating second stage results for cluster {cluster_id}")
+                Logger().debug(f"Now calculating for {cluster_id, cluster_members}")
                 temporary_solution, cluster_center_dict, number_of_clusters \
                     = self.generate_temporary_clustering_solution(cluster_id, cluster_members)
                 feasible_solution = self.feasible_solution_creator.make_solution_feasible(temporary_solution,
@@ -82,8 +83,8 @@ class ClusteringSecondStage:
                 feasible_solution_with_all_members = self.add_total_member_list(feasible_solution)
                 # feasible_solution_with_distance_matrix = self.add_distance_matrix(feasible_solution_with_all_members,
                 #                                                                  self.building_centroids)
-                Logger().debug(f"feasible solution has been created for cluster {cluster_id}\n"
-                               f"solution: {feasible_solution}")
+                # Logger().debug(f"feasible solution has been created for cluster {cluster_id}\n"
+                #               f"solution: {feasible_solution}")
                 clustering_second_stage_adapter = ClusteringSecondStageAdapter()
                 brkga_result = clustering_second_stage_adapter.do_brkga(
                     graph=self.shortest_path_graph,
@@ -123,6 +124,8 @@ class ClusteringSecondStage:
         necessary_clusters_whole = math.floor(necessary_clusters)
         reduction_percentage = Config().get_decrease_max_clusters_to_find_pctg()
         necessary_clusters_discounted = int(necessary_clusters_whole * (1-(reduction_percentage/100)))
+        if necessary_clusters_discounted < 1:
+            return 1
         return necessary_clusters_discounted
 
     def do_kmeans_clustering(self, xys_list, weight_list, number_of_clusters):
@@ -135,8 +138,8 @@ class ClusteringSecondStage:
                                        algorithm='elkan',
                                        bisecting_strategy='largest_cluster')
         result = bisect_means.fit(X, weights)
-        Logger().debug(result.labels_)
-        Logger().debug(result.cluster_centers_)
+        # Logger().debug(result.labels_)
+        # Logger().debug(result.cluster_centers_)
         return result
 
     def get_number_of_clusters(self):
@@ -168,7 +171,7 @@ class ClusteringSecondStage:
             cluster_dict[unique_label] = []
         for i in range(len(member_list)):
             cluster_dict[labels[i]].append(member_list[i])
-        Logger().debug(f"Cluster dict has been created.\n {cluster_dict}")
+        # Logger().debug(f"Cluster dict has been created.\n {cluster_dict}")
         return cluster_dict
 
     def generate_cluster_center_dict(self, temporary_solution):
@@ -177,7 +180,7 @@ class ClusteringSecondStage:
         list_of_xy_tuples = list(map(tuple, cluster_center_xys))
         for i in range(len(list_of_xy_tuples)):
             cluster_center_dict[i] = list_of_xy_tuples[i]
-        Logger().debug(f"Cluster center dict has been created.\n {cluster_center_dict}")
+        # Logger().debug(f"Cluster center dict has been created.\n {cluster_center_dict}")
         return cluster_center_dict
 
     def add_total_member_list(self, cluster_dict):
@@ -187,7 +190,7 @@ class ClusteringSecondStage:
             member_list = inner_dict[self.MEMBER_LIST_KEY]
             total_member_list.extend(member_list)
         cluster_dict[self.TOTAL_MEMBER_LIST_KEY] = total_member_list
-        Logger().debug(f"Total member list has been created.\n Current dict: {cluster_dict}")
+        # Logger().debug(f"Total member list has been created.\n Current dict: {cluster_dict}")
         return cluster_dict
 
     def add_distance_matrix(self, cluster_dict, info_layer):
@@ -201,7 +204,7 @@ class ClusteringSecondStage:
         points_array = np.array(member_xy_list)
         distance_matrix = cdist(points_array, points_array, 'euclidean')
         cluster_dict[self.DISTANCE_MATRIX_KEY] = distance_matrix
-        Logger().debug(f"Distance matrix has been created.\n Current dict: {cluster_dict}")
+        # Logger().debug(f"Distance matrix has been created.\n Current dict: {cluster_dict}")
         return cluster_dict
 
     def calculate_used_capacity(self, processed_cluster_dict, info_layer):

@@ -53,8 +53,8 @@ class ShortestPathGraphCreator:
                 serialized_graph = json.load(f)
                 shortest_path_graph = self.deserialize_graph(serialized_graph)
                 Logger().info("successfully loaded shortest path graph from file system.")
-        mst = self.create_mst(shortest_path_graph)
-        self.visualize_mst(mst)
+        # mst = self.create_mst(shortest_path_graph)
+        # self.visualize_mst(mst)
         return shortest_path_graph
 
     def serialize_point_xy(self, point):
@@ -102,7 +102,7 @@ class ShortestPathGraphCreator:
             for j in range(i + 1, len(relevant_nodes)):
                 source = relevant_nodes[i]
                 target = relevant_nodes[j]
-                Logger().debug(f"finding the shortest path from {source} to {target}")
+                # Logger().debug(f"finding the shortest path from {source} to {target}")
                 try:
                     path = nx.shortest_path(self.graph, source, target, weight='weight')
                     path_length = nx.shortest_path_length(self.graph, source, target, weight='weight')
@@ -173,7 +173,7 @@ class ShortestPathGraphCreator:
     def calculate_street_type_cost_factor(self, edge_ids, is_custom_weight_calculation_necessary):
         default_factor = 1.0
         if not is_custom_weight_calculation_necessary:
-            Logger().debug(f"no custom weight calculation necessary for {edge_ids}. Using {default_factor}.")
+            # Logger().debug(f"no custom weight calculation necessary for {edge_ids}. Using {default_factor}.")
             return default_factor
         factor_sum = 0.0
         distance_sum = 0.0
@@ -205,9 +205,9 @@ class ShortestPathGraphCreator:
             Logger().warning(f"found distance sum of 0 for ids: {edge_ids}. Returning default value.")
             return default_factor
         cumulated_factor = factor_sum / distance_sum
-        Logger().debug(
-            f'added street type cost factor to road for {edge_ids}, with factor_sum of {factor_sum} and a'
-            f'distance sum of {distance_sum}. Result is {cumulated_factor}')
+        # Logger().debug(
+        #    f'added street type cost factor to road for {edge_ids}, with factor_sum of {factor_sum} and a'
+        #    f'distance sum of {distance_sum}. Result is {cumulated_factor}')
         return cumulated_factor
 
     def get_adjacency_matrix_with_custom_weights(self, shortest_path_graph):
@@ -216,7 +216,7 @@ class ShortestPathGraphCreator:
             previous_weight = data['weight']
             new_weight = data['weight'] * new_graph[u][v]['street_type_cost_factor']
             new_graph.edges[u, v]['weight'] = new_weight
-            Logger().debug(f"New custom weight for path between {u} and {v} is {new_weight}, was {previous_weight}")
+            # Logger().debug(f"New custom weight for path between {u} and {v} is {new_weight}, was {previous_weight}")
         adjacency_matrix = nx.adjacency_matrix(new_graph).todense()
         return adjacency_matrix
 
@@ -224,5 +224,5 @@ class ShortestPathGraphCreator:
         all_street_type_entries = Config().get_street_type_multipliers()
         all_multipliers = [multiplier for fclass, multiplier in all_street_type_entries.items()]
         custom_weight_calculation_necessary = any(multiplier != 1.0 for multiplier in all_multipliers)
-        Logger().debug(f"Is a custom weight calculation necessary? {custom_weight_calculation_necessary}.")
+        # Logger().debug(f"Is a custom weight calculation necessary? {custom_weight_calculation_necessary}.")
         return custom_weight_calculation_necessary

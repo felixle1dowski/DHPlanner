@@ -11,6 +11,7 @@ from ...util.results_saver import ResultsSaver
 from datetime import datetime
 import os
 import time
+import copy
 
 class Brkga:
 
@@ -33,6 +34,7 @@ class Brkga:
         self.initial_solution = initial_solution
         self.do_warm_start = Config().get_do_warm_start()
         self.timestamp_dict = {}
+        self.requested_new_folder = False
 
     def do_brkga(self):
         brkga = BrkgaMpIpr(
@@ -55,13 +57,9 @@ class Brkga:
             Logger().info("Not doing a warm start")
         brkga.initialize()
         Logger().info("Brkga initialized")
-        best_chromosome = self.evolve_with_stop_criterion(brkga)
+        best_result = self.evolve_with_stop_criterion(brkga)
         # brkga.evolve(self.num_generations)
-        best_distance = brkga.get_best_fitness()
-        Logger().info(f"best distance sum: {best_distance}")
-        end_result = self.get_result_for_chromosome(best_chromosome)
-        Logger().info(f"end result brkga: {end_result}")
-        return end_result
+        return best_result
 
     def get_result_for_chromosome(self, chromosome):
         """Only used for end result."""
@@ -78,11 +76,11 @@ class Brkga:
         large_offset = 0
         Logger().info(f"{datetime.now()} Warm Start...")
         Logger().info(f"{iteration}")
-        best_chromosome = self.get_result_for_chromosome(brkga.get_best_chromosome())
+        best_result = self.get_result_for_chromosome(brkga.get_best_chromosome())
         best_cost = brkga.get_best_fitness()
         current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
-        Logger().info(f"{current_time} intermediate result: {best_chromosome}")
-        self.save_result(current_time, best_chromosome, iteration)
+        Logger().info(f"{current_time} intermediate result: {best_result}")
+        self.save_result(current_time, best_result, iteration)
         run = True
         start_time = time.time()
         self.timestamp_dict[iteration] = current_time
@@ -100,7 +98,7 @@ class Brkga:
                     large_offset = update_offset
                 last_update_iteration = iteration
                 best_cost = fitness
-                best_chromosome = brkga.get_best_chromosome()
+                best_chromosome = copy.deepcopy(brkga.get_best_chromosome())
                 Logger().info("new best chromosome found!")
                 best_result = self.get_result_for_chromosome(best_chromosome)
                 Logger().info(f"{current_time} intermediate result: {best_result}")
@@ -114,10 +112,9 @@ class Brkga:
         current_time = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
         Logger().info(f"{current_time} Total elapsed time: {total_elapsed_time}")
         Logger().info(f"Total number of iterations: {total_num_iterations}")
-        end_result = self.get_result_for_chromosome(best_chromosome)
         self.save_times(self.timestamp_dict)
-        self.save_result(current_time, end_result, iteration)
-        return best_chromosome
+        self.save_result(current_time, best_result, iteration)
+        return best_result
 
     def save_result(self, timestamp, result_dict, num_generations):
         current_generation = num_generations
@@ -127,8 +124,11 @@ class Brkga:
         mutant_percentage = self.brkga_params.mutants_percentage
         number_of_parents = self.brkga_params.total_parents
         number_of_elite_parents = self.brkga_params.num_elite_parents
+        create_new_folder = not self.requested_new_folder
         ResultsSaver.save_result(file_name=f"brkga_generation_{num_generations}",
+                                 create_new_folder=create_new_folder,
                                   time=timestamp, random_seed=self.seed,
+                                  buildings_observed=self.instance.get_number_of_nodes() - 1,
                                   population_factor=Config().get_population_factor(),
                                   pivot_element=self.decoder.pivot_element,
                                   current_generation=current_generation,
@@ -140,7 +140,11 @@ class Brkga:
                                   number_of_elite_parents=number_of_elite_parents,
                                   number_of_desired_clusters=amount_of_clusters,
                                   result_dict=result_dict)
+        self.requested_new_folder = True
 
     def save_times(self, timestamp_dict):
+        create_new_folder = not self.requested_new_folder
         ResultsSaver.save_result(file_name=f"times_per_generation",
+                                 create_new_folder=create_new_folder,
                                  timestamps=timestamp_dict)
+        self.requested_new_folder = True

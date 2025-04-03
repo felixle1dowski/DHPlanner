@@ -43,11 +43,11 @@ class FitnessFunction:
         all_costs = [single_cost for single_cost, demand in fitness_scores]
         all_demands = [demand for single_cost, demand in fitness_scores]
         fitness = sum(all_costs) / sum(all_demands)
-        Logger().debug(f"fitness for permutation calculated: {fitness}")
+        # Logger().debug(f"fitness for permutation calculated: {fitness}")
         return fitness
 
     def compute_fitness(self, id_subset : list, cluster_center_id):
-        Logger().debug(f"Calculating fitness for {id_subset} with {cluster_center_id} as it's cluster center.")
+        # Logger().debug(f"Calculating fitness for {id_subset} with {cluster_center_id} as it's cluster center.")
         if len(id_subset) == 1:
             return self.fixed_cost, self.instance.get_point_demands(id_subset)
         subset_graph = self.instance.get_subgraph(id_subset)
@@ -56,23 +56,24 @@ class FitnessFunction:
 
         pipe_mass_flows = self.calculate_cumulative_mass_flows(tree, self.buildings_to_point_dict[cluster_center_id])
 
-        Logger().debug(f"pipe flows calculated: {pipe_mass_flows}")
+        # Logger().debug(f"pipe flows calculated: {pipe_mass_flows}")
         pipes, _ = self.pipes_to_construct(tree, pipe_mass_flows)
         pipe_cost_sum, pipe_cost, trench_cost = self.calculate_pipe_cost(pipes)
 
         all_demands = self.instance.get_point_demands_per_year(id_subset) * self.life_time_of_heating_source
         total_cost = self.fixed_cost + pipe_cost_sum
-        Logger().debug(f"all demands calculated: {all_demands}, total cost: {total_cost}")
+        # Logger().debug(f"all demands calculated: {all_demands}, total cost: {total_cost}")
         # zero and negative checks to make sure.
         if all_demands <= 0:
             return self.CONSTRAINT_BROKEN_PENALTY, 1
         # ToDo: be careful!! cluster center id_subset needs to contain cluster center!!
         # fitness =  (self.fixed_cost + pipe_cost_sum) / all_demands
-        Logger().debug(f"costs and demands calculated for {id_subset} with cluster center {cluster_center_id}: cost: {total_cost}, demand: {all_demands}")
+        # Logger().debug(f"costs and demands calculated for {id_subset} with cluster center {cluster_center_id}: cost: {total_cost}, demand: {all_demands}")
+
         return total_cost, all_demands
 
     def compute_fitness_for_all_result(self, cluster_dict):
-        Logger().debug(f"Calculating fitness for all results in {cluster_dict}.")
+        Logger().debug(f" xXx Calculating fitness for all results in {cluster_dict}.")
         result_for_each_cluster_list = []
         for cluster_center_id, members in cluster_dict.items():
             if cluster_center_id != "-1":
@@ -102,7 +103,9 @@ class FitnessFunction:
             'sums' : result_sums,
             'clusters' : result_for_each_cluster_list
         }
-        Logger().debug(f"end_result attained: {end_result}")
+        if "172146675" in [result['members'] for result in result_for_each_cluster_list]:
+            Logger().debug(f"Logging... {result_for_each_cluster_list}")
+        # Logger().debug(f"end_result attained: {end_result}")
         return end_result
 
     def result_sums(self, result_list):
@@ -201,7 +204,7 @@ class FitnessFunction:
                 f"{self.points_to_building_dict[u]} to {self.points_to_building_dict[v]}": value
                 for (u, v), value in pipe_mass_flows.items()
             }
-            Logger().debug(f"pipe_mass_flows: {transformed_dict}")
+            # Logger().debug(f"pipe_mass_flows: {transformed_dict}")
         return pipe_mass_flows
 
     def calculate_simultaneity_factor(self, number_of_consumers):
@@ -218,7 +221,7 @@ class FitnessFunction:
         pipes = []
         from_to_pipes = {}
         for u, v, data in network_tree.edges(data=True):
-            Logger().debug(f"creating pipe from {self.points_to_building_dict[u]} to {self.points_to_building_dict[v]}")
+            # Logger().debug(f"creating pipe from {self.points_to_building_dict[u]} to {self.points_to_building_dict[v]}")
             pipe = {
                 'id': data['edge_ids'],
                 'length': data['weight'],
@@ -229,7 +232,7 @@ class FitnessFunction:
 
     # ToDo: This should probably go into the catalogue class, right?
     def compute_pipe_type(self, mass_flow):
-        Logger().debug(f"computing pipe type for {mass_flow}")
+        # Logger().debug(f"computing pipe type for {mass_flow}")
         pressure_loss_threshold = 250
         pdf = self.pipe_diameter_catalogue
         filtered_pdf = pdf[pdf[self.MASS_FLOW_COL_NAME] >= mass_flow]
@@ -251,7 +254,7 @@ class FitnessFunction:
                     value_found = True
                     break
             if value_found:
-                Logger().debug(f"Calculated pipe type for {mass_flow}: {pipe_type}")
+                # Logger().debug(f"Calculated pipe type for {mass_flow}: {pipe_type}")
                 break
         if pipe_type is None:
             Logger().error(f"No valid mass flow found for {mass_flow}")
@@ -268,7 +271,7 @@ class FitnessFunction:
             trench_costs += trench_cost
             pipe_cost = pipe_cost + trench_cost
             pipe_costs_sum += pipe_cost
-        Logger().debug(f"Pipe cost calculated: sum: {pipe_costs_sum}, investment: {pipe_investment_costs}, trench: {trench_costs}")
+        # Logger().debug(f"Pipe cost calculated: sum: {pipe_costs_sum}, investment: {pipe_investment_costs}, trench: {trench_costs}")
         return pipe_costs_sum, pipe_investment_costs, trench_costs
 
     def calculate_single_pipe_cost(self, pipe):
@@ -281,7 +284,7 @@ class FitnessFunction:
         type = pipe['pipe_type']
         cost_per_m = float(type['price'])
         cost = length * cost_per_m
-        Logger().debug(f"calculated cost for pipe with length {length} and type {type} : {cost}")
+        # Logger().debug(f"calculated cost for pipe with length {length} and type {type} : {cost}")
         return cost
 
     def calculate_single_trench_cost(self, pipe):
@@ -295,6 +298,6 @@ class FitnessFunction:
             trench_profile_cubic = (0.80 + outer_diameter_m + 0.10) * (0.10 + outer_diameter_m + 0.10 + outer_diameter_m + 0.10)
         cost_per_cubic_m = float(self.trench_cost_per_cubic_m)
         cost = cost_per_cubic_m * trench_profile_cubic * length_of_pipe
-        Logger().debug(f"calculated trenching cost for pipe with type {pipe_count} and outer diameter  {outer_diameter_m}"
-                       f"with a length of {length_of_pipe}: {cost}")
+        # Logger().debug(f"calculated trenching cost for pipe with type {pipe_count} and outer diameter  {outer_diameter_m}"
+        #               f"with a length of {length_of_pipe}: {cost}")
         return cost

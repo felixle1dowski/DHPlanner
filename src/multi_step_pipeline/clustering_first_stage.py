@@ -48,18 +48,18 @@ class ClusteringFirstStage:
 
     def set_required_fields(self, building_centroids_layer,
                             adjacency_matrix=None, id_labels=None):
-        Logger().debug(f"Adjacency Matrix set to: {adjacency_matrix}")
+        # Logger().debug(f"Adjacency Matrix set to: {adjacency_matrix}")
         self.building_centroids = building_centroids_layer
         self.buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
         if adjacency_matrix is not None:
             self.adjacency_matrix = adjacency_matrix
-            Logger().debug(f'Adjacency matrix:\n{adjacency_matrix}')
+            # Logger().debug(f'Adjacency matrix:\n{adjacency_matrix}')
         if id_labels is not None:
             self.id_labels = id_labels
-        if adjacency_matrix is not None and id_labels is None \
-                or adjacency_matrix is None and id_labels is not None:
-            raise Exception("If either an adjacency matrix or a id_to_point_dict are provided,"
-                            "the other also has to be provided.")
+        # if adjacency_matrix is not None and id_labels is None \
+        #         or adjacency_matrix is None and id_labels is not None:
+        #     raise Exception("If either an adjacency matrix or a id_to_point_dict are provided,"
+        #                     "the other also has to be provided.")
         self.ready_to_start = True
 
     def start(self):
@@ -71,14 +71,13 @@ class ClusteringFirstStage:
             if self.distance_measuring_method == "centroids":
                 data = self.prepare_data_for_clustering(cluster_weights)
                 clustering_result = self.do_clustering(data, min_samples)
-
             if self.distance_measuring_method == "nearest_point" or self.distance_measuring_method == "custom":
                 if self.distance_measuring_method == "nearest_point":
                     distances_list, amount_of_features, osm_ids = self.calculate_distances_between_points()
                     distance_matrix = self.construct_distance_matrix(distances_list, amount_of_features)
                     distance_df = self.construct_distance_matrix_df(distance_matrix, osm_ids)
                     cluster_weights_custom = self.map_cluster_weights_to_labels(self.id_labels, cluster_weights)
-
+                    min_samples = 1
                 elif self.distance_measuring_method == "custom" and self.adjacency_matrix is not None and self.id_labels is not None:
                     distance_df = self.construct_distance_matrix_df(self.adjacency_matrix, self.id_labels)
                     cluster_weights_custom = self.map_cluster_weights_to_labels(self.id_labels, cluster_weights)
@@ -96,46 +95,6 @@ class ClusteringFirstStage:
             results = self.prepare_return(clustering_result)
             return results
 
-    # def start(self):
-    #     if self.ready_to_start:
-    #         self.selected_buildings_expression = self.prepare_filter_expression()
-    #         # prepared_data = self.prepare_data_for_clustering()
-    #         # clusters, features, labels = self.do_clustering(prepared_data)
-    #         # self.print_results(clusters)
-    #         if self.distance_measuring_method == "centroids":
-    #             data = self.prepare_data_for_clustering()
-    #             clusters, features, labels = self.do_clustering(data)
-    #             self.assign_clusters_to_building_centroids(clusters)
-    #         elif self.distance_measuring_method == "nearest_point":
-    #             pass
-    #         elif self.distance_measuring_method == "custom":
-    #             pass
-    #         else:
-    #             raise NotYetImplementedException(f"distance measuring method {self.distance_measuring_method} is not yet implemented.")
-    #         distances_list, amount_of_features, osm_ids = self.calculate_distances_between_points()
-    #         distance_matrix = self.construct_distance_matrix(distances_list, amount_of_features)
-    #         if self.adjacency_matrix is None and self.id_labels is None:
-    #             distance_df = self.construct_distance_matrix_df(distance_matrix, osm_ids)
-    #         elif self.adjacency_matrix is not None and self.id_labels is not None:
-    #             distance_df = self.construct_distance_matrix_df(self.adjacency_matrix, self.id_labels)
-    #         else:
-    #             raise Exception("Impossible to continue first stage clustering due to wrong combination"
-    #                             "of parameters.")
-    #         clustering_results = self.do_clustering_with_custom_metric(distance_df)
-    #         output_layer = self.prepare_output_layer_for_visualization(clustering_results)
-    #         renderer = self.create_unique_cluster_colors_renderer(
-    #             clustering_results[self.CLUSTER_RESULTS_CLUSTER_COL_NAME].values,
-    #             output_layer.geometryType(),
-    #             self.CLUSTER_FIELD_NAME)
-    #         self.visualize_clustering_results_by_repainting(output_layer, renderer)
-    #         result = self.prepare_return(clustering_results)
-    #         # self.plot_clusters(clusters, features, labels)
-    #         # self.assign_clusters_to_building_centroids(clusters)
-    #         # self.visualize_building_cluster_membership(labels)
-    #         return result
-    #     else:
-    #         raise Exception("Not ready to start")
-
     @function_timer.timed_function
     def prepare_data_for_clustering(self, weight_dict):
         prepared_data = []
@@ -152,8 +111,8 @@ class ClusteringFirstStage:
                 "y": y,
                 "weight": weight
             })
-            Logger().debug(f"centroid added in preparation for clustering: "
-                           f"id: {id_}, x: {x}, y: {y}, weight: {weight}")
+            # Logger().debug(f"centroid added in preparation for clustering: "
+            #               f"id: {id_}, x: {x}, y: {y}, weight: {weight}")
         return prepared_data
 
     @function_timer.timed_function
@@ -206,7 +165,7 @@ class ClusteringFirstStage:
     @function_timer.timed_function
     def construct_distance_matrix_df(self, distance_matrix, label_names):
         distance_df = pd.DataFrame(distance_matrix, index=label_names, columns=label_names)
-        Logger().debug(distance_df)
+        # Logger().debug(distance_df)
         return distance_df
 
 
@@ -253,20 +212,19 @@ class ClusteringFirstStage:
             id_field_name_idx = layer.fields().indexFromName(id_field_name)
             feature1_id = str(feature1[id_field_name_idx])
             feature2_id = str(feature2[id_field_name_idx])
-            Logger().debug(f"distance between Feature: {feature1_id} and Feature: {feature2_id}: {distance}")
+            # Logger().debug(f"distance between Feature: {feature1_id} and Feature: {feature2_id}: {distance}")
 
-    @function_timer.timed_function
-    def do_clustering(self, data, min_samples, sample_weights):
+    def do_clustering(self, data, min_samples):
         ids = [point['id'] for point in data]
         weights = [point['weight'] for point in data]
         features = np.array([[point['x'], point['y']] for point in data])
 
         dbscan = DBSCAN(eps=Config().get_eps(), min_samples=min_samples)
-        clusters = dbscan.fit_predict(features, sample_weight=sample_weights)
+        clusters = dbscan.fit_predict(features, sample_weight=weights)
         columns = [self.CLUSTER_RESULTS_CLUSTER_COL_NAME]
         labels = ids
         cluster_results = pd.DataFrame(clusters, index=labels, columns=columns)
-        Logger().debug(cluster_results)
+        # Logger().debug(cluster_results)
         # clusters = defaultdict(list)
         # for idx, label in enumerate(clusters):
         #     clusters[label].append(ids[idx])
@@ -279,7 +237,7 @@ class ClusteringFirstStage:
         labels = distance_df.index
         columns = [self.CLUSTER_RESULTS_CLUSTER_COL_NAME]
         cluster_results = pd.DataFrame(clusters, index=labels, columns=columns)
-        Logger().debug(cluster_results)
+        # Logger().debug(cluster_results)
         return cluster_results
 
     @function_timer.timed_function
@@ -311,9 +269,11 @@ class ClusteringFirstStage:
     def print_results(self, clusters):
         for cluster_id, cluster_ids in clusters.items():
             if cluster_id != 1:
-                Logger().debug(f"Cluster {cluster_id}: {cluster_ids}")
+                pass
+                # Logger().debug(f"Cluster {cluster_id}: {cluster_ids}")
             else:
-                Logger().debug(f"Noise: {cluster_ids}")
+                pass
+                # Logger().debug(f"Noise: {cluster_ids}")
 
     @function_timer.timed_function
     def assign_clusters_to_building_centroids(self, clusters):
@@ -395,7 +355,7 @@ class ClusteringFirstStage:
             # we don't need to construct a heating network for it.
             if len(building_list) <= 1:
                 return_dict.pop(cluster_id)
-        Logger().debug(f"Filtered return dictionary: {return_dict}")
+        # Logger().debug(f"Filtered return dictionary: {return_dict}")
         return return_dict
 
     def calculate_cluster_weights(self):
@@ -407,7 +367,7 @@ class ClusteringFirstStage:
             weight_dict[DhpUtility.get_value_from_field(self.building_centroids,
                                                         centroid,
                                                         self.SHARED_ID_FIELD_NAME)] = float(heat_demand)
-        Logger().debug(f"Calculated cluster weights: {weight_dict}")
+        # Logger().debug(f"Calculated cluster weights: {weight_dict}")
         return weight_dict
 
     def calculate_min_samples(self):

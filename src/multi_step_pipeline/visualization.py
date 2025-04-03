@@ -28,7 +28,7 @@ class Visualization:
     PIPE_RENDER_MAX_THICKNESS = 2.0
 
     ready_to_start = False
-    exploded_roads_layer = None
+    pipe_layer = None
     cluster_list = None
     info_layer = None
     cluster_dict_number = 0
@@ -44,8 +44,8 @@ class Visualization:
                 self.create_network_layer(pipe_categories, cluster_dict)
                 self.cluster_dict_number += 1
 
-    def set_required_fields(self, exploded_roads, cluster_list, info_layer):
-        self.exploded_roads_layer = exploded_roads
+    def set_required_fields(self, pipe_layer, cluster_list, info_layer):
+        self.pipe_layer = pipe_layer
         self.cluster_list = cluster_list
         self.info_layer = info_layer
         self.ready_to_start = True
@@ -118,7 +118,7 @@ class Visualization:
 
     def create_network_layer(self, cluster_center_line_categories, cluster_dict):
         roads_per_cluster_center = {cluster['cluster_center']: cluster['pipe_result'] for cluster in cluster_dict['clusters'] if cluster['cluster_center'] != "-1"}
-        roads_crs = self.exploded_roads_layer.crs().authid()
+        roads_crs = self.pipe_layer.crs().authid()
         network_layer = QgsVectorLayer(f'MultiLineString?crs={roads_crs}', 'pipe_network', 'memory')
         network_layer_provider = network_layer.dataProvider()
         network_layer.startEditing()
@@ -164,7 +164,7 @@ class Visualization:
             categories = self.create_categories_fill(center_with_corresponding_color)
         elif symbol_type is QgsLineSymbol:
             categories = self.create_categories_line(center_with_corresponding_color)
-        Logger().debug(f"generated categories: {categories}")
+        # Logger().debug(f"generated categories: {categories}")
         return categories
 
     def create_categories_fill(self, center_with_corresponding_color):
@@ -211,9 +211,9 @@ class Visualization:
             normalized_value = i / (num_colors - 1) if num_colors > 1 else 0.5
             color = ramp.color(normalized_value).name()
             center_colors[center] = color
-            Logger().debug(f"Color for center {center}: {color}")
+            # Logger().debug(f"Color for center {center}: {color}")
 
-        Logger().debug(f"Generated colors for cluster centers: {center_colors}")
+        # Logger().debug(f"Generated colors for cluster centers: {center_colors}")
         return center_colors
 
     def add_pipe_fields(self, pipe_result, pipe_attributes, network_layer):
@@ -248,8 +248,13 @@ class Visualization:
     def add_pipe_geometry(self, pipe, pipe_feature):
         road_ids = pipe[self.ROAD_IDS_KEY_NAME]
         pipe_multiline = QgsMultiLineString()
-        for road_id in road_ids:
-            road_feature = DhpUtility.get_feature_by_id_field(self.exploded_roads_layer, self.ROAD_ID_FIELD, road_id)
+        if type(road_ids) == list:
+            for road_id in road_ids:
+                road_feature = DhpUtility.get_feature_by_id_field(self.pipe_layer, self.ROAD_ID_FIELD, road_id)
+                road_geometry = road_feature.geometry().constGet().clone()
+                pipe_multiline.addGeometry(road_geometry)
+        elif type(road_ids) == str:
+            road_feature = DhpUtility.get_feature_by_id_field(self.pipe_layer, self.ROAD_ID_FIELD, road_ids)
             road_geometry = road_feature.geometry().constGet().clone()
             pipe_multiline.addGeometry(road_geometry)
         pipe_feature.setGeometry(QgsGeometry(pipe_multiline))
@@ -259,7 +264,7 @@ class Visualization:
         pipe_attributes = []
         pipe_features = []
         pipe_result = DhpUtility.flatten_list(pipes_per_cluster_center.values())
-        diameter_thicknesses = self.calculate_diameter_thickness(pipe_result)
+        # diameter_thicknesses = self.calculate_diameter_thickness(pipe_result)
         self.add_pipe_fields(pipe_result, pipe_attributes, network_layer)
         for cluster_center, pipes in pipes_per_cluster_center.items():
             for pipe in pipes:

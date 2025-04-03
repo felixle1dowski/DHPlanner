@@ -114,10 +114,10 @@ class GraphCreatorStreetFollowing:
                 road_nodes.append(start_point)
                 new_start_node = GraphCreatorStreetFollowing.GraphNode(False, None, start_point)
                 nodes[start_point] = new_start_node
-                Logger().debug(f'added road_node starting point of road with id {road.id()}')
+                # Logger().debug(f'added road_node starting point of road with id {road.id()}')
             else:
                 start_point = start_point_already_added
-                Logger().debug(f'starting point of road_node with id {road.id()} was already added')
+                # Logger().debug(f'starting point of road_node with id {road.id()} was already added')
 
             end_point_already_added = self.check_if_node_already_added(end_point, road_nodes)
             # same thing for the end point of a road. Only add it, if it's not already present in the graph
@@ -131,18 +131,18 @@ class GraphCreatorStreetFollowing:
                     new_end_node = GraphCreatorStreetFollowing.GraphNode(False, building_id, end_point)
                 road_nodes.append(end_point)
                 nodes[end_point] = new_end_node
-                Logger().debug(
-                    f'added road node ending point of road with id {road.id()}. Is connecting graph to building'
-                    f' with id {building_id}')
+                # Logger().debug(
+                #    f'added road node ending point of road with id {road.id()}. Is connecting graph to building'
+                #    f' with id {building_id}')
             else:
                 end_point = end_point_already_added
-                Logger().debug(f'ending point of road_node with id {road.id()} was already added')
+                # Logger().debug(f'ending point of road_node with id {road.id()} was already added')
 
             weight = DhpUtility.get_value_from_field(self.exploded_roads, road, 'length')
             osm_id_idx = road.fieldNameIndex('osm_id')
             id_ = road.attributes()[osm_id_idx]
             edges.append(GraphCreatorStreetFollowing.GraphEdge(start_point, end_point, weight, id_))
-        Logger().debug(f"building_point_translation {building_point_translation}")
+        # Logger().debug(f"building_point_translation {building_point_translation}")
         return (nodes, edges, building_point_translation)
 
     def check_if_node_already_added(self, node, node_list: list):
@@ -280,11 +280,11 @@ class GraphCreatorStreetFollowing:
         # access points we want to split them by.
         for access_point in access_points_features:
             road_id = access_point.attributes()[road_id_idx]
-            Logger().debug(f"road to split added: {road_id}.")
+            # Logger().debug(f"road to split added: {road_id}.")
             if road_id not in road_split_points:
                 road_split_points[road_id] = []
             road_split_points[road_id].append(access_point)
-            Logger().debug(f"road with id {road_id} to be split at access point {access_point.id()}.")
+            # Logger().debug(f"road with id {road_id} to be split at access point {access_point.id()}.")
         for road_id, p in road_split_points.items():
             p_dict = {}
             reconnection_list = []
@@ -350,7 +350,7 @@ class GraphCreatorStreetFollowing:
                 roads_provider.addFeature(feature)
                 iteration += 1
             DhpUtility.delete_features_custom_id(roads, "osm_id", road_id)
-        Logger().debug("Added all access points to road graph.")
+        # Logger().debug("Added all access points to road graph.")
         roads.commitChanges()
 
     def add_ap_lines_to_roads(self, ap_layer):
@@ -393,5 +393,5 @@ class GraphCreatorStreetFollowing:
                                                                              centroid,
                                                                              "osm_id"))
             roads_provider.addFeature(feature)
-        Logger().debug("Added all access points lines to the road graph.")
+        # Logger().debug("Added all access points lines to the road graph.")
 

@@ -54,7 +54,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                                                                         info_layer)
             # ToDo: cluster_center_dict[cluster_id] has to be (x, y) tuple!
             distance_ranking_dict[cluster_id] = sorted_list
-        Logger().debug(f"Distance Ranking in Cluster dict has been successful.\n{distance_ranking_dict}")
+        # Logger().debug(f"Distance Ranking in Cluster dict has been successful.\n{distance_ranking_dict}")
         return distance_ranking_dict
 
     def rank_member_list_by_distance_from_center(self, member_list, cluster_center_xy, info_layer):
@@ -76,7 +76,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                 self.MEMBER_LIST_KEY: member_list,
                 self.CURRENT_CAPACITY_KEY: self.calculate_current_capacity(info_layer, member_list)
             }
-        Logger().debug(f"capacity added to cluster_dict. Current dict:\n{dict_with_capacity}")
+        # Logger().debug(f"capacity added to cluster_dict. Current dict:\n{dict_with_capacity}")
         return dict_with_capacity
 
     def calculate_current_capacity(self, info_layer, member_list):
@@ -94,10 +94,10 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
         # ToDo: Validate that dict has all the required fields!
         for (cluster_id, inner_dict) in cluster_dict.items():
             if inner_dict[self.CURRENT_CAPACITY_KEY] < 0:
-                Logger().debug(f"Capacity of Cluster {cluster_id} is less than 0."
-                               f"Trying to swap cluster memberships until capacity is >= 0.")
+                # Logger().debug(f"Capacity of Cluster {cluster_id} is less than 0."
+                #               f"Trying to swap cluster memberships until capacity is >= 0.")
                 for candidate in list(inner_dict[self.MEMBER_LIST_KEY]):
-                    Logger().debug(f"Currently observing {candidate}")
+                    # Logger().debug(f"Currently observing {candidate}")
                     cluster_centers_ranked = (
                         self.create_distance_ranking_member_to_cluster_center(candidate,
                                                                               cluster_center_dict,
@@ -123,7 +123,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                                                                                               candidate,
                                                                                               self.DEMAND_FIELD)),
                                                 no_member_list)
-                    Logger().debug(f"Current Capacity of Cluster {cluster_id} is {inner_dict[self.CURRENT_CAPACITY_KEY]}.")
+                    # Logger().debug(f"Current Capacity of Cluster {cluster_id} is {inner_dict[self.CURRENT_CAPACITY_KEY]}.")
 
         return cluster_dict, no_member_list
 
@@ -141,7 +141,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
 
         cluster_dict[to_cluster][self.MEMBER_LIST_KEY].append(member)
         cluster_dict[to_cluster][self.CURRENT_CAPACITY_KEY] -= member_demand
-        Logger().debug(f"Swapped {member} from cluster {from_cluster} to cluster {to_cluster}")
+        # Logger().debug(f"Swapped {member} from cluster {from_cluster} to cluster {to_cluster}")
 
     def create_distance_ranking_member_to_cluster_center(self, member, cluster_center_dict, info_layer):
         ranking_list = []
@@ -171,7 +171,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                     closest_distance = distance_to_cluster_center
                     closest_building_id = member
             inner_dict[self.CLUSTER_CENTER_BUILDING_KEY] = closest_building_id
-        Logger().debug(f"Cluster Centers added. Current dict: {cluster_dict}")
+        # Logger().debug(f"Cluster Centers added. Current dict: {cluster_dict}")
         return cluster_dict
 
 
@@ -189,7 +189,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
                                                           member)
                 total_distance += euclidean(cluster_center_xy, member_xy)
             inner_dict[self.SUM_OF_DISTANCES_PER_CLUSTER_KEY] = total_distance
-        Logger().debug(f"Sum of distances per cluster added. Current Dictionary: {cluster_dict}")
+        # Logger().debug(f"Sum of distances per cluster added. Current Dictionary: {cluster_dict}")
         return cluster_dict
 
     def add_total_sum_of_distances_field(self, cluster_dict):
@@ -200,7 +200,7 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
             self.TOTAL_SUM_OF_DISTANCES_KEY : total_sum_of_distances,
             self.CLUSTERS_KEY : cluster_dict
         }
-        Logger().debug(f"Total sum of distances per cluster added. Current Dictionary: {new_cluster_dict}")
+        # Logger().debug(f"Total sum of distances per cluster added. Current Dictionary: {new_cluster_dict}")
         return new_cluster_dict
 
     def flag_as_non_member(self, cluster_dict, cluster_id, member, member_demand, no_member_list):
@@ -213,8 +213,8 @@ class ClusteringSecondStageFeasibleSolutionCreator(IClusteringSecondStageFeasibl
 
 
         no_member_list.append(member)
-        Logger().debug(f"{member} was flagged as non-member. Current non-member list:"
-                       f" {no_member_list}")
+        # Logger().debug(f"{member} was flagged as non-member. Current non-member list:"
+        #               f" {no_member_list}")
         return no_member_list
 
     def add_non_members_to_cluster_dict(self, cluster_dict, no_member_list):

@@ -87,7 +87,7 @@ class BrkgaAPI:
         catalogue_interpreter = PipeDiameterCatalogue()
         catalogues = catalogue_interpreter.open_catalogues(self.CATALOGUE_FOLDER_PATH)
         catalogue_df = catalogue_interpreter.create_dataframe(catalogues)
-        Logger().debug(f"catalogue df was created: {catalogue_df}")
+        # Logger().debug(f"catalogue df was created: {catalogue_df}")
 
         pipe_prices = PipePrices.open_prices_json(self.PRICES_JSON_PATH)
 
@@ -131,5 +131,5 @@ class BrkgaAPI:
         for i in range(len(id_solution)):
             member_index = total_member_list.index(id_solution[i])
             initial_chromosome[member_index] = keys[i]
-        Logger().debug(f"Initial Chromosome created: {initial_chromosome}")
+        # Logger().debug(f"Initial Chromosome created: {initial_chromosome}")
         return initial_chromosome

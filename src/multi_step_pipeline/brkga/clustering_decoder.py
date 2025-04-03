@@ -56,6 +56,8 @@ class ClusteringDecoder:
         if cluster_capacities is -1:
             return self.CONSTRAINT_BROKEN_PENALTY
         cluster_dict = self.create_cluster_membership_dict(arranged_ids, cluster_capacities)
+        if "172146675" in arranged_ids:
+            Logger().debug(f"{cluster_dict}")
         return cluster_dict
 
     def init_cluster_capacities(self, permutation: list) -> {str: float}:
@@ -81,7 +83,7 @@ class ClusteringDecoder:
     def create_cluster_membership_dict_no_pivot(self, permutation: list, cluster_capacities: {int: float}) -> {str: list[str]}:
         cluster_centers = permutation[:self.num_clusters]
         potential_members = permutation[self.num_clusters:]
-        result_dict = defaultdict(list)
+        result_dict = defaultdict(list, {center: [] for center in cluster_centers})
         for potential_member in potential_members:
             result_dict = self.create_cluster_membership_dict_inner_function(result_dict, cluster_capacities,
                                                                              potential_member, cluster_centers)
@@ -100,7 +102,7 @@ class ClusteringDecoder:
                                                                              potential_member, cluster_centers)
             break_index += 1
         members_to_exclude = permutation[break_index:]
-        Logger().debug(f"break index: {break_index}, members_to_exclude: {members_to_exclude}")
+        # Logger().debug(f"break index: {break_index}, members_to_exclude: {members_to_exclude}")
         for member in members_to_exclude:
             result_dict[self.MEMBERS_TO_FLAG_INDEX].append(member)
         return result_dict
@@ -113,13 +115,13 @@ class ClusteringDecoder:
         for cluster_center, distance in distances_to_center:
             if self.potential_member_fits_into_cluster(cluster_capacities, cluster_center, potential_member):
                 cluster_dict[cluster_center].append(potential_member)
-                Logger().debug(f"cluster capacity of {cluster_center} was: {cluster_capacities[cluster_center]}")
+                # Logger().debug(f"cluster capacity of {cluster_center} was: {cluster_capacities[cluster_center]}")
                 cluster_capacities[cluster_center] -= self.instance.get_point_demand(potential_member)
-                Logger().debug(f"cluster capacity of {cluster_center} is: {cluster_capacities[cluster_center]}")
+                # Logger().debug(f"cluster capacity of {cluster_center} is: {cluster_capacities[cluster_center]}")
                 potential_member_assigned = True
                 break
         if not potential_member_assigned:
-            Logger().debug(f"{potential_member} had to be sorted out!")
+            # Logger().debug(f"{potential_member} had to be sorted out!")
             cluster_dict[self.MEMBERS_TO_FLAG_INDEX].append(potential_member)
         return cluster_dict
 
@@ -128,8 +130,8 @@ class ClusteringDecoder:
                                            potential_member: str):
         remaining_capacity = float(cluster_capacities[cluster_center])
         potential_remaining_capacity = remaining_capacity - self.instance.get_point_demand(potential_member)
-        Logger().debug(f'calculating remaining capacity for {potential_member}: {remaining_capacity} - {self.instance.get_point_demand(potential_member)} = {potential_remaining_capacity}'
-                       f'enough capacity? {potential_remaining_capacity >= 0}')
+        # Logger().debug(f'calculating remaining capacity for {potential_member}: {remaining_capacity} - {self.instance.get_point_demand(potential_member)} = {potential_remaining_capacity}'
+        #               f'enough capacity? {potential_remaining_capacity >= 0}')
         return potential_remaining_capacity >= 0
 
     def evaluate_solution(self, cluster_dict) -> float:

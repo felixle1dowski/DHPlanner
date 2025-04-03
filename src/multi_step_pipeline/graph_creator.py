@@ -16,7 +16,6 @@ class GraphCreator:
             else:
                 graph_creator = GraphCreatorGreenfield(kwargs["building_centroids"])
                 # ToDo: Be diligent! Don't have one rely on __init__ and the other on a setter!!!
-                graph_creator.start()
         elif strategy == "street-following":
             exception_string = ""
             if "exploded_roads" not in kwargs.keys():

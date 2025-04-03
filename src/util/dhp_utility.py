@@ -55,7 +55,7 @@ class DhpUtility:
     def assign_unique_id_custom_id_field(layer, feature, id_field_name):
         new_highest_id = IdWallet().get_new_id(layer, id_field_name)
         DhpUtility.assign_value_to_field(layer, id_field_name, feature, new_highest_id)
-        Logger().debug(f"assigned new id {new_highest_id} to feature {feature.id()}")
+        # Logger().debug(f"assigned new id {new_highest_id} to feature {feature.id()}")
         return new_highest_id
 
     @staticmethod
@@ -114,7 +114,7 @@ class DhpUtility:
         layer.dataProvider().addAttributes([QgsField(f"{new_field_name}", field_type)])
         layer.updateFields()
         layer.commitChanges()
-        Logger().debug(f"Field '{new_field_name}' added to layer '{layer.name()}'.")
+        # Logger().debug(f"Field '{new_field_name}' added to layer '{layer.name()}'.")
 
     @staticmethod
     def copy_values_between_fields(layer, source_field_name, target_field_name):
@@ -171,7 +171,7 @@ class DhpUtility:
             transferred_value = feature[transferred_field_name]
             transferred_data[value_to_match] = transferred_value
 
-        Logger().debug((f"Transferred data: {transferred_data}"))
+        # Logger().debug((f"Transferred data: {transferred_data}"))
 
         for feature in target_layer_features:
             value_to_match = feature[matching_field_name]
@@ -180,7 +180,7 @@ class DhpUtility:
                 feature.setAttribute(target_layer_transferred_idx, value_to_transfer)
                 target_layer.updateFeature(feature)
         target_layer.commitChanges()
-        Logger().debug(("Transfer completed."))
+        # Logger().debug(("Transfer completed."))
 
     @staticmethod
     def convert_iterator_to_list(iterator):

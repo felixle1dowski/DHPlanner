@@ -243,9 +243,9 @@ class Preprocessing:
                     multiple_check = True
                     heat_demand_combined = heat_demand_feature[f"{self.HEAT_DEMAND_COL_NAME}"]
                     heat_demand_individual = str((float(heat_demand_combined) * area_share * insulation_factor))
-                    Logger().debug(f"centroid {DhpUtility.get_value_from_field(building_centroids, centroid_feature, self.BUILDINGS_ID_FIELD_NAME)} "
-                                   f"has an area share of {area_share}. The summed heating demand is {DhpUtility.get_value_from_field(heat_demands, heat_demand_feature, self.HEAT_DEMAND_COL_NAME)} "
-                                   f"and thus an individual heat demand of {heat_demand_individual}")
+                    # Logger().debug(f"centroid {DhpUtility.get_value_from_field(building_centroids, centroid_feature, self.BUILDINGS_ID_FIELD_NAME)} "
+                    #               f"has an area share of {area_share}. The summed heating demand is {DhpUtility.get_value_from_field(heat_demands, heat_demand_feature, self.HEAT_DEMAND_COL_NAME)} "
+                    #               f"and thus an individual heat demand of {heat_demand_individual}")
                     DhpUtility.assign_value_to_field(building_centroids, self.INDIVIDUAL_HEAT_DEMAND_COL_NAME,
                                                      centroid_feature, heat_demand_individual)
                     building_centroids.updateFeature(centroid_feature)
@@ -271,9 +271,9 @@ class Preprocessing:
                         sum_of_area += area
                         id_area_dict[DhpUtility.get_value_from_field(self.buildings_layer, building,
                                                                      self.BUILDINGS_ID_FIELD_NAME)] = area
-                        Logger().debug(f"heat demand id: {heat_demand.id()} "
-                                       f"Building area for building "
-                                       f"{DhpUtility.get_value_from_field(self.buildings_layer, building, self.BUILDINGS_ID_FIELD_NAME)}: {area}")
+                        # Logger().debug(f"heat demand id: {heat_demand.id()} "
+                        #               f"Building area for building "
+                        #               f"{DhpUtility.get_value_from_field(self.buildings_layer, building, self.BUILDINGS_ID_FIELD_NAME)}: {area}")
             else:
                 raise Exception(f"A selected heat demand is of the wrong type. Needed: "
                                 f"Polygons. Gotten: {heat_demand_geometry.type()}, id of feature: {heat_demand.id()}")
@@ -287,7 +287,7 @@ class Preprocessing:
         logging_dict = {}
         for centroid, area in result_dict.items():
             logging_dict[DhpUtility.get_value_from_field(self.buildings_centroids, centroid, self.BUILDINGS_ID_FIELD_NAME)] = area
-        Logger().debug(logging_dict)
+        # Logger().debug(logging_dict)
         return result_dict
 
     def add_peak_demands_to_building_centroids(self):
@@ -335,8 +335,8 @@ class Preprocessing:
                 str_ids_to_delete.append(DhpUtility.get_value_from_field(building_centroids, feature, "osm_id"))
         centroid_provider.deleteFeatures(ids_to_delete)
         building_centroids.commitChanges()
-        Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to not having a corresponding"
-                       f"heat demand.")
+        # Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to not having a corresponding"
+        #               f"heat demand.")
 
     def delete_centroids_with_too_large_heat_demand(self):
         building_centroids = self.buildings_centroids
@@ -346,11 +346,11 @@ class Preprocessing:
         str_ids_to_delete = []
         for feature in building_centroids.getFeatures():
             if float(feature.attributes()[peak_demand_idx]) >= float(Config().get_heat_capacity()):
-                Logger().debug(f"{float(feature.attributes()[peak_demand_idx])} was larger than {float(Config().get_heat_capacity())}")
+                # Logger().debug(f"{float(feature.attributes()[peak_demand_idx])} was larger than {float(Config().get_heat_capacity())}")
                 ids_to_delete.append(feature.id())
                 # ToDo: Delete all the osm_id accesses and replace it by a centrally located wallet or similar.
                 str_ids_to_delete.append(DhpUtility.get_value_from_field(building_centroids, feature, "osm_id"))
         centroid_provider.deleteFeatures(ids_to_delete)
         building_centroids.commitChanges()
-        Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to having a larger heat demand than"
-                       f"the specified heating source is able to provide.")
+        # Logger().debug(f"Deleted features with ids {', '.join(str_ids_to_delete)}, due to having a larger heat demand than"
+        #               f"the specified heating source is able to provide.")

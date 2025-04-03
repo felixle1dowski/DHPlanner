@@ -6,7 +6,7 @@ import networkx as nx
 from ..util.dhp_utility import DhpUtility
 
 
-class GraphCreatorGreenfield:
+class GraphCreatorGreenfield():
     # TODO: NEEDS TO INHERIT FROM GRAPHCREATOR! A LOT OF REDUNDANT INFORMATION HERE!
     class GraphNode:
         def __init__(self, has_ap, building_id, coordinates):
@@ -22,8 +22,6 @@ class GraphCreatorGreenfield:
             self.id = id
 
     DESIRED_CRS = QgsCoordinateReferenceSystem('EPSG:4839')
-    # TODO: CHANGE THIS! THIS IS ONLY A PLACEHOLDER!
-    # ToDo: Need to find a solution on which ID is to be used for visualized lines in the MST!
     ID_FIELD_NAME = "osm_id"
     BUILDING_CENTROID_ID_FIELD = "osm_id"
     LENGTH_FIELD_NAME = "length"
@@ -124,8 +122,10 @@ class GraphCreatorGreenfield:
             }
             graph.add_node(node_point, **node_info)
         for edge in edges:
-            graph.add_edge(edge.node_1, edge.node_2, weight=edge.weight, id=edge.id)
+            graph.add_edge(edge.node_1, edge.node_2, weight=edge.weight, edge_ids=edge.id)
         return graph
+
+
 
     def create_line_between_buildings(self, building_centroid_1, building_centroid_2, layer: QgsVectorLayer):
         b1_xy = QgsPointXY(building_centroid_1.geometry().asPoint().x(), building_centroid_1.geometry().asPoint().y())

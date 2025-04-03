@@ -48,7 +48,7 @@ class Config:
         for field in self.REQUIRED_FIELDS:
             if field not in self.config:
                 raise ConfigException(f"{field} is required in config.yaml.")
-        if self.config.get("installation-strategy") not in ["greenfield", "street-following"]:
+        if self.config.get("installation-strategy") not in ["greenfield", "street-following", "adjacent"]:
             raise ConfigException("Installation Strategy is not valid.")
         if self.config.get("log-level") not in ["debug", "info", "warning", "error", "critical"]:
             raise ConfigException("Log Level is not valid.")
@@ -177,23 +177,17 @@ class Config:
     def get_log_detailed_results(self):
         return self.config.get("log-detailed-results").lower() == "true"
 
-    def get_result_folder_path(self):
-        folder_path = self.results_folder_path
+    def get_result_folder_path(self, create_new_folder):
+        if not create_new_folder and not self.results_folder_path:
+            raise Exception("No folder has been created.")
         if self.get_log_detailed_results():
-            if not self.created_results_subfolder:
-                now = datetime.now().strftime("%Y%m%d-%H%M%S")
+            if create_new_folder:
+                now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
                 dir_name = f"{now}-results"
                 folder_path = os.path.join(self.config.get("results-file-path"), dir_name)
-                try:
-                    os.makedirs(folder_path, exist_ok=False)
-                except OSError:
-                    now = datetime.now().strftime("%Y%m%d-%H%M%S")
-                    dir_name = f"{now}-results"
-                    folder_path = os.path.join(self.config.get("results-file-path"), dir_name)
-                    os.makedirs(folder_path, exist_ok=True)
+                os.makedirs(folder_path, exist_ok=True)
                 self.results_folder_path = folder_path
-                self.created_results_subfolder = True
-        return folder_path
+        return self.results_folder_path
 
     def get_population_factor(self):
         return self.config.get("population-factor")
