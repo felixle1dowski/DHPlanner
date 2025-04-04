@@ -48,7 +48,7 @@ class ClusteringFirstStage:
 
     def set_required_fields(self, building_centroids_layer,
                             adjacency_matrix=None, id_labels=None):
-        # Logger().debug(f"Adjacency Matrix set to: {adjacency_matrix}")
+        Logger().debug(f"Adjacency Matrix set to: {adjacency_matrix}")
         self.building_centroids = building_centroids_layer
         self.buildings_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
         if adjacency_matrix is not None:
@@ -67,6 +67,7 @@ class ClusteringFirstStage:
             self.selected_buildings_expression = self.prepare_filter_expression()
             cluster_weights = self.calculate_cluster_weights()
             min_samples = self.calculate_min_samples()
+            Logger().debug(f"min_samples: {min_samples}")
             clustering_result = None
             if self.distance_measuring_method == "centroids":
                 data = self.prepare_data_for_clustering(cluster_weights)
@@ -75,9 +76,9 @@ class ClusteringFirstStage:
                 if self.distance_measuring_method == "nearest_point":
                     distances_list, amount_of_features, osm_ids = self.calculate_distances_between_points()
                     distance_matrix = self.construct_distance_matrix(distances_list, amount_of_features)
+                    distance_matrix = self.adjust_transient_connections(distance_matrix, amount_of_features)
                     distance_df = self.construct_distance_matrix_df(distance_matrix, osm_ids)
                     cluster_weights_custom = self.map_cluster_weights_to_labels(self.id_labels, cluster_weights)
-                    min_samples = 1
                 elif self.distance_measuring_method == "custom" and self.adjacency_matrix is not None and self.id_labels is not None:
                     distance_df = self.construct_distance_matrix_df(self.adjacency_matrix, self.id_labels)
                     cluster_weights_custom = self.map_cluster_weights_to_labels(self.id_labels, cluster_weights)
@@ -167,7 +168,6 @@ class ClusteringFirstStage:
         distance_df = pd.DataFrame(distance_matrix, index=label_names, columns=label_names)
         # Logger().debug(distance_df)
         return distance_df
-
 
     @function_timer.timed_function
     def prepare_output_layer_for_visualization(self, cluster_results):
@@ -378,5 +378,34 @@ class ClusteringFirstStage:
     def map_cluster_weights_to_labels(self, id_labels, cluster_weights):
         weights = []
         for id_ in id_labels:
+            # Logger().debug(f"building with id: {id_} has cluster weight of {cluster_weights[id_]}")
             weights.append(cluster_weights[id_])
         return weights
+
+    def adjust_transient_connections(self, distance_matrix, amount_of_features):
+        neighborhoods = []
+        visited = set()
+        for i in range(amount_of_features):
+            if i not in visited:
+                # Start a new neighborhood with building `i`
+                queue = [i]
+                neighborhood = set()
+                while queue:
+                    current = queue.pop(0)
+                    if current not in neighborhood:
+                        neighborhood.add(current)
+                        # Find all direct neighbors of `current` (distance <= eps)
+                        neighbors = np.where(distance_matrix[current] <= Config().get_eps())[0]
+                        for neighbor in neighbors:
+                            if neighbor != current and neighbor not in neighborhood:
+                                queue.append(neighbor)
+                neighborhoods.append(neighborhood)
+                visited.update(neighborhood)
+
+        # Step 3: Set all intra-neighborhood distances to 0
+        for neighborhood in neighborhoods:
+            for i in neighborhood:
+                for j in neighborhood:
+                    if i != j:
+                        distance_matrix[i, j] = 0
+        return distance_matrix
