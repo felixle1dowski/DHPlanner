@@ -95,6 +95,7 @@ class ClusteringSecondStage:
                     pivot_element=Config().get_pivot_strategy()) # ToDo: Do this here or in orchestrator?
                 Logger().info(f"brkga result {brkga_result}")
                 results.append(brkga_result)
+            results = self.add_summed_result(results)
             return results
 
     def generate_temporary_clustering_solution(self, cluster_id, cluster_members):
@@ -291,3 +292,28 @@ class ClusteringSecondStage:
     def visualize_clustering_results_by_repainting(self, output_layer, renderer):
         output_layer.setRenderer(renderer)
         output_layer.triggerRepaint()
+
+    def add_summed_result(self, results):
+        results = {
+            "total_sums": self.calculate_total_sums(results),
+            "clusters": results
+        }
+        return results
+
+    def calculate_total_sums(self, results):
+        total_amount_of_supplied_power = 0
+        total_amount_of_total_cost = 0
+        total_amount_of_trench_cost = 0
+        total_amount_of_pipe_investment_cost = 0
+        for entry in results:
+            sums_ = entry["sums"]
+            total_amount_of_supplied_power += sums_["sum_of_supplied_power"]
+            total_amount_of_total_cost += sums_["sum_of_total_cost"]
+            total_amount_of_pipe_investment_cost += sums_["sum_of_pipe_investment_cost"]
+            total_amount_of_trench_cost += sums_["sum_of_trench_cost"]
+        total_fitness_value = total_amount_of_total_cost / total_amount_of_supplied_power
+        return {"total_amount_of_supplied_power": total_amount_of_supplied_power,
+                "total_amount_of_total_cost": total_amount_of_total_cost,
+                "total_amount_of_trench_cost": total_amount_of_trench_cost,
+                "total_amount_of_pipe_investment_cost": total_amount_of_pipe_investment_cost,
+                "total_fitness_value": total_fitness_value}

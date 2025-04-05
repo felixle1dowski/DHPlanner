@@ -38,6 +38,8 @@ class Visualization:
             cluster_center_colors_dict = self.generate_color_per_cluster_center(self.cluster_list)
             building_categories = self.create_categories(cluster_center_colors_dict, QgsFillSymbol)
             pipe_categories = self.create_categories(cluster_center_colors_dict, QgsLineSymbol)
+            self.create_selection_result_layer(self.cluster_list)
+            self.create_results_per_cluster_layer(self.cluster_list, building_categories)
             self.create_member_layer(building_categories, self.cluster_list)
             self.create_network_layer(pipe_categories, self.cluster_list)
 
@@ -47,8 +49,105 @@ class Visualization:
         self.info_layer = info_layer
         self.ready_to_start = True
 
+    def create_selection_result_layer(self, cluster_list):
+        selection_layer = QgsProject.instance().mapLayersByName(Config().get_selection_layer_name())[0]
+        if not selection_layer.isValid():
+            # we should never get here, since the layers have been validated while
+            # preprocessing. This is here just in case some process tempered with
+            # the layer during the processing chain.
+            raise Exception('Invalid selection layer')
+        selection_crs = selection_layer.crs().authid()
+        selection_result_layer = QgsVectorLayer(f'Polygon?crs={selection_crs}', 'selection_result', 'memory')
+        feature = DhpUtility.convert_iterator_to_list(selection_layer.getFeatures())
+        if len(feature) > 1:
+            raise Exception('Multiple features in selection layer are not supported')
+        selection_feature = feature[0]
+        selection_geometry = selection_feature.geometry()
+        selection_feature.setGeometry(selection_geometry)
+        self.add_fields_and_attributes_selection_result(selection_result_layer, selection_feature, cluster_list)
+        selection_result_layer.startEditing()
+        selection_result_layer.dataProvider().addFeatures([selection_feature])
+        selection_result_layer.commitChanges()
+        selection_result_layer.updateExtents()
+        QgsProject.instance().addMapLayer(selection_result_layer)
+
+    def add_fields_and_attributes_selection_result(self, selection_result_layer, selection_feature, cluster_list):
+        # assumes all sum fields are of type double (float).
+        all_fields = []
+        for key, value in cluster_list['total_sums'].items():
+            all_fields.append((key, value))
+        for field in all_fields:
+            DhpUtility.create_new_field(selection_result_layer, field[0], QVariant.Double)
+        selection_feature.setFields(selection_result_layer.fields())
+        for field in all_fields:
+            DhpUtility.assign_value_to_field(selection_result_layer, field[0], selection_feature, field[1])
+
+    def create_results_per_cluster_layer(self, cluster_list, cluster_center_fill_categories):
+        building_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
+        if not building_layer.isValid():
+            raise Exception('Invalid building layer')
+        building_crs = building_layer.crs().authid()
+        cluster_result_layer = QgsVectorLayer(f'Polygon?crs={building_crs}', f'cluster_result', 'memory')
+        cluster_members_and_sums = {}
+        for entry in cluster_list['clusters']:
+            for inner_dict in entry['clusters']:
+                if inner_dict["cluster_center"] != "-1":
+                    cluster_members_and_sums[inner_dict['cluster_center']] = {
+                        "members": inner_dict['members'],
+                        "supplied_power": inner_dict['supplied_power'],
+                        "pipe_investment_cost": inner_dict['pipe_investment_cost'],
+                        "trench_cost": inner_dict['trench_cost'],
+                        "total_pipe_cost": inner_dict['total_pipe_cost'],
+                        "total_cost": inner_dict['total_cost'],
+                        "fitness": inner_dict['fitness'],
+                    }
+        self.add_fields_results_per_cluster_layer(cluster_result_layer, cluster_members_and_sums)
+        features_to_add = []
+        for cluster_center, inner_dict in cluster_members_and_sums.items():
+            cluster_feature = QgsFeature()
+            self.create_fused_geometry(building_layer, inner_dict["members"], cluster_feature)
+            self.set_values_for_results_per_cluster_layer(cluster_result_layer,
+                                                          cluster_center, inner_dict, cluster_feature)
+            features_to_add.append(cluster_feature)
+        cluster_result_layer.startEditing()
+        cluster_result_layer.dataProvider().addFeatures(features_to_add )
+        cluster_result_layer.commitChanges()
+        cluster_result_layer.updateExtents()
+        QgsProject.instance().addMapLayer(cluster_result_layer)
+        self.render_and_repaint(cluster_result_layer, self.CLUSTER_CENTER_FIELD, cluster_center_fill_categories)
+
+    def add_fields_results_per_cluster_layer(self, cluster_result_layer, cluster_members_and_sums):
+        # assumes all sum fields are double (float)
+        DhpUtility.create_new_field(cluster_result_layer, self.CLUSTER_CENTER_FIELD, QVariant.String)
+        fields_to_add = []
+        for cluster_center, inner_dict in cluster_members_and_sums.items():
+            for key in inner_dict.keys():
+                if key != "members":
+                    fields_to_add.append(key)
+        for field in fields_to_add:
+            DhpUtility.create_new_field(cluster_result_layer, field, QVariant.Double)
+
+    def set_values_for_results_per_cluster_layer(self, cluster_result_layer, cluster_center_id, dictionary_with_fields, feature):
+        feature.setFields(cluster_result_layer.fields())
+        DhpUtility.assign_value_to_field(cluster_result_layer, self.CLUSTER_CENTER_FIELD, feature, cluster_center_id)
+        for key, value in dictionary_with_fields.items():
+            if key != "members":
+                DhpUtility.assign_value_to_field(cluster_result_layer, key, feature, value)
+
+    def create_fused_geometry(self, building_layer, member_ids, feature):
+        member_building_features = DhpUtility.get_features_by_id_field(building_layer, self.BUILDING_ID_FIELD, member_ids)
+        geometries = [feature.geometry() for feature in member_building_features]
+        if geometries:
+            fused_geometry = QgsGeometry(geometries[0])
+            if len(geometries) > 1:
+                for geometry in geometries[1:]:
+                    fused_geometry = fused_geometry.combine(geometry)
+            feature.setGeometry(fused_geometry)
+
     def create_member_layer(self, cluster_center_fill_categories, cluster_list):
         building_layer = QgsProject.instance().mapLayersByName(Config().get_buildings_layer_name())[0]
+        if not building_layer.isValid():
+            raise Exception('Invalid building layer')
         info_layer_fields = self.info_layer.fields()
         building_crs = building_layer.crs().authid()
 
@@ -61,7 +160,7 @@ class Visualization:
 
         # Get all members from the cluster dictionary
         complete_member_list = []
-        for entry in cluster_list:
+        for entry in cluster_list['clusters']:
             for inner_dict in entry['clusters']:
                 members = inner_dict['members']
                 complete_member_list += members
@@ -101,12 +200,12 @@ class Visualization:
         # Add cluster center field and assign values
         DhpUtility.create_new_field(member_layer, self.CLUSTER_CENTER_FIELD, QVariant.String)
         all_cluster_centers = []
-        for entry in cluster_list:
+        for entry in cluster_list['clusters']:
             for inner_dict in entry['clusters']:
                 all_cluster_centers.append(inner_dict['cluster_center'])
         # all_cluster_centers = [inner_dict['cluster_center'] for inner_dict in cluster_dict['clusters']]
         for cluster_center in all_cluster_centers:
-            for entry in cluster_list:
+            for entry in cluster_list['clusters']:
                 cluster_members_of_cluster_center = DhpUtility.flatten_list(
                     [inner_dict['members'] for inner_dict in entry['clusters'] if
                      inner_dict['cluster_center'] == cluster_center]
@@ -124,7 +223,7 @@ class Visualization:
 
     def create_network_layer(self, cluster_center_line_categories, cluster_list):
         roads_per_cluster_center = {}
-        for entry in cluster_list:
+        for entry in cluster_list['clusters']:
             for cluster in entry['clusters']:
                 if cluster['cluster_center'] != "-1":
                     roads_per_cluster_center[cluster['cluster_center']] = cluster['pipe_result']
@@ -166,7 +265,7 @@ class Visualization:
 
     def generate_color_per_cluster_center(self, cluster_list):
         cluster_centers = []
-        for inner_list in cluster_list:
+        for inner_list in cluster_list['clusters']:
             for cluster in inner_list['clusters']:
                 cluster_centers.append(cluster['cluster_center'])
         cluster_center_colors_dict = Visualization.generate_colors(cluster_centers)
@@ -304,3 +403,6 @@ class Visualization:
     def normalize(self, value, old_min, old_max, new_min, new_max):
         normalized_value = ((value - old_min) / (old_max - old_min)) * (new_max - new_min) + new_min
         return normalized_value
+
+
+
