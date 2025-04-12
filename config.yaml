@@ -6,6 +6,7 @@
   # possible strategies:
     # street-following: pipes have to be installed under the streets.
     # greenfield: no rules for pipe installation.
+    # adjacent: Only neighbouring buildings
   installation-strategy: "street-following"
   # possible methods:
     # one-step: method that aims to calculate detailed and accurate results.
@@ -16,7 +17,7 @@
     # nearest_point: Use nearest points of geometries
     # custom: Use graph
   method: "multi-step"
-  log-level: "info"
+  log-level: "debug"
   roads-file-name: "roads.shp"
   buildings-file-name: "buildings.shp"
   crs: "EPSG:4839"
@@ -32,13 +33,13 @@
   heat-capacity: 250 # 250 kW für Analyse!
   # in kW.
 
-
   trench-cost-per-cubic-m: 130.0
+  cost-per-penetration: 200.0
 
   insulation-factor: 0
   # insulation decreases heating demand by the specified percentage!
   minimum-heat-capacity-exhaustion: 70 # Analyse: kleinste mögliche Wärmequelle
-  decrease-max-clusters-to-find-pctg: 30
+  decrease-max-clusters-to-find-pctg: 0
   # in percent.
 
   # result logging
@@ -46,10 +47,10 @@
   results-file-path: "/Users/felixlewandowski/Documents/ba_results"
 
   # DBSCAN parameter
-  eps: 200.0
+  eps: 100
 
   # brkga parameters
-  num-generations-to-break: 100
+  num-generations-to-break: 10
   population-factor: 3
   do-warm-start: "False"
   use-random-seed: "True"

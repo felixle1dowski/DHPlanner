@@ -31,6 +31,7 @@ class FitnessFunction:
         self.pipe_prices = pipe_prices
         self.trench_cost_per_cubic_m = Config().get_trench_cost_per_cubic_m()
         self.life_time_of_heating_source = Config().get_life_time_of_heating_source()
+        self.cost_per_penetration = Config().get_cost_per_penetration()
 
     def compute_fitness_for_all(self, cluster_dict):
         fitness_scores = []
@@ -288,16 +289,19 @@ class FitnessFunction:
         return cost
 
     def calculate_single_trench_cost(self, pipe):
-        pipe_count = pipe['pipe_type']['type']
-        outer_diameter_m = float(pipe['pipe_type']['outer_diameter']) / 1000
-        length_of_pipe = float(pipe['length'])
-        trench_profile_cubic = 0.0
-        if pipe_count == "uno":
-            trench_profile_cubic = (0.80 + outer_diameter_m + 0.10) * (0.10 + outer_diameter_m + 0.10)
-        elif pipe_count == "duo":
-            trench_profile_cubic = (0.80 + outer_diameter_m + 0.10) * (0.10 + outer_diameter_m + 0.10 + outer_diameter_m + 0.10)
-        cost_per_cubic_m = float(self.trench_cost_per_cubic_m)
-        cost = cost_per_cubic_m * trench_profile_cubic * length_of_pipe
-        # Logger().debug(f"calculated trenching cost for pipe with type {pipe_count} and outer diameter  {outer_diameter_m}"
-        #               f"with a length of {length_of_pipe}: {cost}")
-        return cost
+        if Config().get_installation_strategy() != "adjacent":
+            pipe_count = pipe['pipe_type']['type']
+            outer_diameter_m = float(pipe['pipe_type']['outer_diameter']) / 1000
+            length_of_pipe = float(pipe['length'])
+            trench_profile_cubic = 0.0
+            if pipe_count == "uno":
+                trench_profile_cubic = (0.80 + outer_diameter_m + 0.10) * (0.10 + outer_diameter_m + 0.10)
+            elif pipe_count == "duo":
+                trench_profile_cubic = (0.80 + outer_diameter_m + 0.10) * (0.10 + outer_diameter_m + 0.10 + outer_diameter_m + 0.10)
+            cost_per_cubic_m = float(self.trench_cost_per_cubic_m)
+            cost = cost_per_cubic_m * trench_profile_cubic * length_of_pipe
+            # Logger().debug(f"calculated trenching cost for pipe with type {pipe_count} and outer diameter  {outer_diameter_m}"
+            #               f"with a length of {length_of_pipe}: {cost}")
+            return cost
+        else:
+            return self.cost_per_penetration

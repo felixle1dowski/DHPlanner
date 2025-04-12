@@ -206,3 +206,6 @@ class Config:
 
     def get_use_random_seed(self):
         return self.config.get("use-random-seed").lower() == "true"
+
+    def get_cost_per_penetration(self):
+        return float(self.config.get("cost-per-penetration"))
