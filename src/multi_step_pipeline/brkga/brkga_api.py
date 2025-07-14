@@ -14,6 +14,7 @@ from .brkga import Brkga
 from .pipe_diameter_catalogue import PipeDiameterCatalogue
 from .pipe_prices import PipePrices
 from .mass_flow_calculation import MassFlowCalculation
+from .minded_heating_sources.minded_heating_sources import MindedHeatingSources
 
 class BrkgaAPI:
 
@@ -26,6 +27,7 @@ class BrkgaAPI:
     CLUSTER_CENTER_KEY = "cluster_center"
     ID_FIELD_NAME = "osm_id"
     PIVOT_STRING_SINGLE = "pivot_members_end"
+    PIVOT_STRING_PREFIX_MULTIPLE = "pivot_"
 
     SCRIPT_DIR = os.path.dirname(__file__)
     CATALOGUE_FOLDER_PATH = os.path.join(SCRIPT_DIR, "./pipe_diameter_catalogues")
@@ -34,6 +36,7 @@ class BrkgaAPI:
 
     def __init__(self):
         self.seed_to_use = 0
+        self.minded_heating_sources = MindedHeatingSources()
 
     # ToDo: Validate members and distance matrix. They need to have the same dimensions!
     def do_brkga(self,
@@ -74,13 +77,17 @@ class BrkgaAPI:
                   total_member_list: list,
                   id_to_node_translation_dict: dict,
                   pivot_element="none"):
-        if pivot_element not in ["none", "single", "double"]:
-            raise ValueError(f"pivot_element must be 'none', 'single', or 'double'. Is: {pivot_element}")
+        if pivot_element not in ["none", "single", "double", "multiple"]:
+            raise ValueError(f"pivot_element must be 'none', 'single', or 'double' or 'multiple'. Is: {pivot_element}")
         if pivot_element == "single":
             total_member_list.append("pivot_members_end")
         elif pivot_element == "double":
             total_member_list.append("pivot_cluster_centers_end")
             total_member_list.append("pivot_members_end")
+        elif pivot_element == "multiple":
+            heating_sources = self.minded_heating_sources.get_heating_sources()
+            for i in range(len(self.minded_heating_sources.get_heating_sources()) - 1): # -1 because last element doesn't need a pivot
+                total_member_list.append(self.PIVOT_STRING_PREFIX_MULTIPLE + f"{i}")
         instance = ClusteringInstance(graph, max_capacity, demands, yearly_demands, members, id_to_node_translation_dict, pivot_element)
         # ToDo: Fitness Function should probably be passed via dependency injection!
 

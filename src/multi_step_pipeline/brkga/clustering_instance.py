@@ -2,6 +2,7 @@ from turtle import pd
 
 import numpy as np
 from networkx import nx
+from .minded_heating_sources.minded_heating_sources import MindedHeatingSources
 
 
 class ClusteringInstance:
@@ -21,6 +22,7 @@ class ClusteringInstance:
         self.id_to_node_translation_dict = id_to_node_translation_dict
         self.pivot_element = pivot_element
         self.yearly_demands = yearly_demands
+        self.minded_heating_sources = MindedHeatingSources()
 
     # ToDo: Delete?
     def get_distance(self, id1, id2):
@@ -54,7 +56,21 @@ class ClusteringInstance:
             number_of_nodes += 1
         elif self.pivot_element == "double":
             number_of_nodes += 2
+        elif self.pivot_element == "multiple":
+            number_of_nodes += self.minded_heating_sources.get_number_of_heating_sources()
         return number_of_nodes
+
+    def get_number_of_pivots(self):
+        pivot_offset = 1 # one pivot isn't needed, since we divide all buildings into as many groups as there
+        # are pivot elements. We don't need a pivot for the last group.
+        if self.pivot_element == "single":
+            return 1
+        elif self.pivot_element == "double":
+            return 2
+        elif self.pivot_element == "multiple":
+            return self.minded_heating_sources.get_number_of_heating_sources() - pivot_offset
+        else:
+            return 0
 
     # def translate_cluster_membership_table(self,
     #                                        cluster_membership_table: np.ndarray,

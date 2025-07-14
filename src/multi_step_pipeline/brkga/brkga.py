@@ -128,7 +128,7 @@ class Brkga:
         ResultsSaver.save_result(file_name=f"brkga_generation_{num_generations}",
                                  create_new_folder=create_new_folder,
                                   time=timestamp, random_seed=self.seed,
-                                  buildings_observed=self.instance.get_number_of_nodes() - 1,
+                                  buildings_observed=self.instance.get_number_of_nodes() - self.instance.get_number_of_pivots(),
                                   population_factor=Config().get_population_factor(),
                                   pivot_element=self.decoder.pivot_element,
                                   current_generation=current_generation,
