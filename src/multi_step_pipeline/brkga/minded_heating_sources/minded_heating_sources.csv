@@ -1,0 +1,5 @@
+heating_source_name;heating_source_cost_euro;heating_source_capacity_kw;heating_source_lifetime_years
+heat_middle;200000;250;30
+heat_stronger;400000;500;30
+heat_strongest;800000;1000;30
+heat_weakest;50000;50;30
