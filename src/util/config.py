@@ -209,3 +209,6 @@ class Config:
 
     def get_cost_per_penetration(self):
         return float(self.config.get("cost-per-penetration"))
+
+    def is_pivot_strategy_multiple(self):
+        return self.config.get("pivot-strategy-multiple").lower() == "true"

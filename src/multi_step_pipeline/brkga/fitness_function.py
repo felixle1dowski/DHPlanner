@@ -11,6 +11,24 @@ from ...util.dhp_utility import DhpUtility
 from ...util.logger import Logger
 
 
+def write_result_dict(cluster_center_id, pipe_result, supplied_power,
+                 pipe_investment_cost, trench_cost, total_pipe_cost,
+                 total_cost, fitness, members, heating_source_capacity, heating_source_cost):
+    return {
+        'cluster_center': cluster_center_id,
+        'pipe_result': pipe_result,
+        'supplied_power': supplied_power,
+        'pipe_investment_cost': pipe_investment_cost,
+        'trench_cost': trench_cost,
+        'total_pipe_cost': total_pipe_cost,
+        'total_cost': total_cost,
+        'fitness': fitness,
+        'members': members,
+        'heating_source_capacity': heating_source_capacity,
+        "heating_source_cost": heating_source_cost,
+    }
+
+
 class FitnessFunction:
 
     DEMAND_FIELD = "peak_demand"
@@ -33,24 +51,45 @@ class FitnessFunction:
         self.life_time_of_heating_source = Config().get_life_time_of_heating_source()
         self.cost_per_penetration = Config().get_cost_per_penetration()
 
-    def compute_fitness_for_all(self, cluster_dict):
-        fitness_scores = []
-        for cluster_center_id, members in cluster_dict.items():
-            if cluster_center_id != "-1":
+    def compute_fitness_for_all(self, cluster_dict, pivot_strategy):
+        if pivot_strategy in ["none", "single", "double"]:
+            fitness_scores = []
+            for cluster_center_id, members in cluster_dict.items():
+                if cluster_center_id != "-1":
+                    members.append(cluster_center_id)
+                    cost, demand = self.compute_fitness_default(members,
+                                                                cluster_center_id)
+                    fitness_scores.append((cost, demand))
+            all_costs = [single_cost for single_cost, demand in fitness_scores]
+            all_demands = [demand for single_cost, demand in fitness_scores]
+            fitness = sum(all_costs) / sum(all_demands)
+            # Logger().debug(f"fitness for permutation calculated: {fitness}")
+            return fitness
+        elif pivot_strategy == "multiple":
+            fitness_scores = []
+            for cluster_center_id, inner_dict in cluster_dict.items():
+                members = inner_dict["members"]
                 members.append(cluster_center_id)
-                cost, demand = self.compute_fitness(members,
-                                           cluster_center_id)
+                heating_source = inner_dict["heating_source"]
+                cost, demand = self.compute_fitness_multiple(members, cluster_center_id, heating_source)
                 fitness_scores.append((cost, demand))
-        all_costs = [single_cost for single_cost, demand in fitness_scores]
-        all_demands = [demand for single_cost, demand in fitness_scores]
-        fitness = sum(all_costs) / sum(all_demands)
-        # Logger().debug(f"fitness for permutation calculated: {fitness}")
-        return fitness
+            all_costs = [single_cost for single_cost, demand in fitness_scores]
+            all_demands = [demand for single_cost, demand in fitness_scores]
+            fitness = sum(all_costs) / sum(all_demands)
+            return fitness
+        else:
+            raise NotImplementedError(f"{pivot_strategy} is not implemented.")
 
-    def compute_fitness(self, id_subset : list, cluster_center_id):
-        # Logger().debug(f"Calculating fitness for {id_subset} with {cluster_center_id} as it's cluster center.")
-        if len(id_subset) == 1:
-            return self.fixed_cost, self.instance.get_point_demands(id_subset)
+    def compute_fitness_multiple(self, members, cluster_center_id, heating_source):
+        if len(members) == 1:
+            return heating_source.cost_euro, self.instance.get_point_demand(members[0])
+        all_demands, pipe_cost_sum = self.compute_fitness_shared(members, cluster_center_id)
+        total_cost = heating_source.cost_euro + pipe_cost_sum
+        if all_demands <= 0:
+            return self.CONSTRAINT_BROKEN_PENALTY, 1
+        return total_cost, all_demands
+
+    def compute_fitness_shared(self, id_subset, cluster_center_id):
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
         tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
@@ -62,6 +101,13 @@ class FitnessFunction:
         pipe_cost_sum, pipe_cost, trench_cost = self.calculate_pipe_cost(pipes)
 
         all_demands = self.instance.get_point_demands_per_year(id_subset) * self.life_time_of_heating_source
+        return all_demands, pipe_cost_sum
+
+    def compute_fitness_default(self, id_subset : list, cluster_center_id):
+        # Logger().debug(f"Calculating fitness for {id_subset} with {cluster_center_id} as it's cluster center.")
+        if len(id_subset) == 1:
+            return self.fixed_cost, self.instance.get_point_demands(id_subset)
+        all_demands, pipe_cost_sum = self.compute_fitness_shared(id_subset, cluster_center_id)
         total_cost = self.fixed_cost + pipe_cost_sum
         # Logger().debug(f"all demands calculated: {all_demands}, total cost: {total_cost}")
         # zero and negative checks to make sure.
@@ -73,26 +119,27 @@ class FitnessFunction:
 
         return total_cost, all_demands
 
-    def compute_fitness_for_all_result(self, cluster_dict):
-        Logger().debug(f" xXx Calculating fitness for all results in {cluster_dict}.")
+    def compute_fitness_for_all_result(self, cluster_dict, pivot_element):
+        if pivot_element in ["none", "single", "double"]:
+            return self.compute_fitness_for_all_result_default(cluster_dict)
+        elif pivot_element == "multiple":
+            return self.compute_fitness_for_all_result_multiple(cluster_dict)
+        else:
+            raise NotImplementedError(f"{pivot_element} is not implemented.")
+
+    def compute_fitness_for_all_result_default(self, cluster_dict):
+        Logger().debug(f"Calculating fitness for all results in {cluster_dict}.")
         result_for_each_cluster_list = []
         for cluster_center_id, members in cluster_dict.items():
             if cluster_center_id != "-1":
                 members.append(cluster_center_id)
                 (pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost,
                  total_cost) = self.compute_fitness_result(members,
-                                               cluster_center_id)
-                result = {
-                    'cluster_center': cluster_center_id,
-                    'pipe_result': pipe_result,
-                    'supplied_power': supplied_power,
-                    'pipe_investment_cost': pipe_investment_cost,
-                    'trench_cost': trench_cost,
-                    'total_pipe_cost': total_pipe_cost,
-                    'total_cost': total_cost,
-                    'fitness': total_cost / supplied_power,
-                    'members': members
-                }
+                                                           cluster_center_id)
+                result = write_result_dict(cluster_center_id, pipe_result, supplied_power,
+                                           pipe_investment_cost, trench_cost, total_pipe_cost,
+                                           total_cost, total_cost / supplied_power, members,
+                                           Config().get_heat_capacity(), Config().get_fixed_cost())
                 result_for_each_cluster_list.append(result)
         result_sums = self.result_sums(result_for_each_cluster_list)
         excluded_members = cluster_dict["-1"]
@@ -107,6 +154,27 @@ class FitnessFunction:
         if "172146675" in [result['members'] for result in result_for_each_cluster_list]:
             Logger().debug(f"Logging... {result_for_each_cluster_list}")
         # Logger().debug(f"end_result attained: {end_result}")
+        return end_result
+
+    def compute_fitness_for_all_result_multiple(self, cluster_dict):
+        Logger().debug(f"Calculating fitness for all results in {cluster_dict}.")
+        result_for_each_cluster_list = []
+        for cluster_center_id, inner_dict in cluster_dict.items():
+            members = inner_dict["members"]
+            heating_source = inner_dict["heating_source"]
+            members.append(cluster_center_id)
+            (pipe_result, supplied_power, total_pipe_cost, pipe_investment_cost, trench_cost,
+             total_cost) = self.compute_fitness_result(members, cluster_center_id, True, heating_source)
+            result = write_result_dict(cluster_center_id, pipe_result, supplied_power,
+                                       pipe_investment_cost, trench_cost, total_pipe_cost,
+                                       total_cost, total_cost / supplied_power, members,
+                                       heating_source.capacity_kw, heating_source.price_euro)
+            result_for_each_cluster_list.append(result)
+        result_sums = self.result_sums(result_for_each_cluster_list)
+        end_result = {
+            'sums': result_sums,
+            'clusters': result_for_each_cluster_list
+        }
         return end_result
 
     def result_sums(self, result_list):
@@ -131,11 +199,14 @@ class FitnessFunction:
         }
         return return_value
 
-    def compute_fitness_result(self, id_subset: list, cluster_center_id):
+    def compute_fitness_result(self, id_subset: list, cluster_center_id, multiple_pivots=False, heat_source_catalogue_heat_source=None):
         """Use only for end result!"""
+        if multiple_pivots and heat_source_catalogue_heat_source is None:
+            raise Exception(f"tried to calculate fitness result with illegal arguments: multiple_pivots is {multiple_pivots} and heat_source_catalogue_heat_source is None")
+        heat_source_investment_cost = heat_source_catalogue_heat_source.cost_euro if multiple_pivots else Config().get_fixed_cost()
         if len(id_subset) == 1:
             return ({}, self.instance.get_point_demands(id_subset),
-                    0, 0, 0, self.fixed_cost)
+                    0, 0, 0, heat_source_investment_cost)
         subset_graph = self.instance.get_subgraph(id_subset)
         mst = self.create_mst(subset_graph)
         tree = self.extract_tree(mst, self.buildings_to_point_dict[cluster_center_id])
@@ -157,7 +228,7 @@ class FitnessFunction:
             value['trench_cost'] = trench_cost
             pipe_result.append(value)
         total_pipe_cost, pipe_investment_cost, trench_cost = self.calculate_pipe_cost(pipes)
-        total_cost = total_pipe_cost + self.fixed_cost
+        total_cost = total_pipe_cost + heat_source_investment_cost
         supplied_power = self.instance.get_point_demands_per_year(id_subset) * self.life_time_of_heating_source
         if supplied_power <= 0:
             total_cost = self.CONSTRAINT_BROKEN_PENALTY

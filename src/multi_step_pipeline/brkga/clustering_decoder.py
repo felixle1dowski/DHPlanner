@@ -47,19 +47,50 @@ class ClusteringDecoder:
         groups_per_heating_source = self.divide_ids_into_groups_per_heating_source(arranged_ids)
         needed_heating_sources = self.calculate_needed_heating_sources_first_guess(groups_per_heating_source)
         merged_list = self.merge_heating_sources_data_types(groups_per_heating_source, needed_heating_sources)
-        concrete_groups = self.divide_members_into_groups(merged_list)
-        return 1
-
-    def divide_members_into_groups(self, merged_list):
+        list_of_cluster_dicts = []
         for entry in merged_list:
-            members = entry["members"]
-            cluster_centers = members[0:entry["needed_heating_sources"]]
-            cluster_members = members[entry["needed_heating_sources"]:]
-            capacities = self.init_cluster_capacities_multiple(cluster_centers, merged_list["heating_source"])
-            potential_member_assigned = False
-            for cluster_member in cluster_members:
-                distances = self.instance.get_sorted_distances_to_multiple_points(cluster_member, cluster_centers)
+            overflow_occurred = True
+            cluster_dict = None
+            while overflow_occurred:
+                cluster_dict, overflow_occurred = self.divide_members_into_groups(entry)
+                if overflow_occurred:
+                    entry["needed_heating_sources"] += 1
+            if cluster_dict:
+                list_of_cluster_dicts.append(cluster_dict)
+        fitness = self.evaluate_solution(list_of_cluster_dicts)
+        return fitness
 
+    def divide_members_into_groups(self, entry_dict):
+        cluster_dict = {}
+        overflow_occurred = False
+        members = entry_dict["members"]
+        heating_source = entry_dict["heating_source"]
+        cluster_centers = members[0:entry_dict["needed_heating_sources"]]
+        cluster_members = members[entry_dict["needed_heating_sources"]:]
+        capacities = self.init_cluster_capacities_multiple(cluster_centers, heating_source)
+        for cluster_center in cluster_centers:
+            cluster_dict[cluster_center] = (
+                self.init_cluster_dict_multiple_heating_sources(cluster_center, heating_source))
+        for cluster_member in cluster_members:
+            potential_member_assigned = False
+            distances_from_member_to_cluster_center \
+                = self.instance.get_sorted_distances_to_multiple_points(cluster_member, cluster_centers)
+            for point_distance_tuple in distances_from_member_to_cluster_center:
+                if self.potential_member_fits_into_cluster(capacities, point_distance_tuple[0], cluster_member):
+                    capacities[point_distance_tuple[0]] -= float(self.instance.get_point_demand(cluster_member))
+                    cluster_dict[point_distance_tuple[0]]["members"].append(cluster_member)
+                    potential_member_assigned = True
+            if not potential_member_assigned:
+                overflow_occurred = True
+        return cluster_dict, overflow_occurred
+
+    def init_cluster_dict_multiple_heating_sources(self, cluster_center, heating_source):
+        entry = {
+            "cluster_center": cluster_center,
+            "heating_source": heating_source,
+            "members": []
+        }
+        return entry
 
     def merge_heating_sources_data_types(self, groups_per_heating_source, needed_heating_sources):
         merged_list = []
@@ -99,7 +130,6 @@ class ClusteringDecoder:
             needed_heating_sources.append(amount_of_heating_sources_needed)
         return needed_heating_sources
 
-
     def decode_single_use(self, chromosome: BaseChromosome):
         cluster_dict = self.decode_chromosome(chromosome)
         fitness = self.evaluate_solution(cluster_dict)
@@ -109,7 +139,7 @@ class ClusteringDecoder:
         cluster_dict = self.decode_chromosome(chromosome)
         if cluster_dict == self.CONSTRAINT_BROKEN_PENALTY:
             return self.CONSTRAINT_BROKEN_PENALTY
-        end_result = self.fitness_function.compute_fitness_for_all_result(cluster_dict)
+        end_result = self.fitness_function.compute_fitness_for_all_result(cluster_dict, self.pivot_element)
         return end_result
 
     def decode_chromosome(self, chromosome: BaseChromosome):
@@ -210,7 +240,7 @@ class ClusteringDecoder:
         return potential_remaining_capacity >= 0
 
     def evaluate_solution(self, cluster_dict) -> float:
-        fitness = self.fitness_function.compute_fitness_for_all(cluster_dict)
+        fitness = self.fitness_function.compute_fitness_for_all(cluster_dict, self.pivot_element)
         return fitness
 
 

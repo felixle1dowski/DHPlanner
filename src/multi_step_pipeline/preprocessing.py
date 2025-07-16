@@ -36,8 +36,8 @@ class Preprocessing:
 
     RESTRICT_ROAD_TYPES = False
 
-    def __init__(self):
-        pass
+    def __init__(self, maximum_heat_capacity):
+        self.maximum_heat_capacity = maximum_heat_capacity
 
     """Central method for preprocessing. Will start - and finish - the preprocessing pipeline."""
     def start(self) -> PreprocessingResult:
@@ -345,7 +345,7 @@ class Preprocessing:
         ids_to_delete = []
         str_ids_to_delete = []
         for feature in building_centroids.getFeatures():
-            if float(feature.attributes()[peak_demand_idx]) >= float(Config().get_heat_capacity()):
+            if float(feature.attributes()[peak_demand_idx]) >= self.maximum_heat_capacity:
                 # Logger().debug(f"{float(feature.attributes()[peak_demand_idx])} was larger than {float(Config().get_heat_capacity())}")
                 ids_to_delete.append(feature.id())
                 # ToDo: Delete all the osm_id accesses and replace it by a centrally located wallet or similar.

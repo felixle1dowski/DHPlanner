@@ -3,15 +3,14 @@
   roads-layer-name: "roads"
   buildings-layer-name: "buildings"
   heat-demands-layer-name: "heat_demands"
-  # possible strategies:
-    # street-following: pipes have to be installed under the streets.
-    # greenfield: no rules for pipe installation.
-    # adjacent: Only neighbouring buildings
-  installation-strategy: "street-following"
+
   # possible methods:
     # one-step: method that aims to calculate detailed and accurate results.
     # multi-step: heuristic method that aims to reduce needed computation resources as much as possible.
   distance-measuring-method: "custom"
+
+  # -------------------------------------
+  # MOST IMPORTANT
   # possible methods:
     # centroids: Use euclidean distance between building centroids
     # nearest_point: Use nearest points of geometries
@@ -24,17 +23,24 @@
   save-graph: "False"
   load-graph: "False"
   graph-file-name: "saved_graph.json"
+  # -------------------------------------
 
-  # available strategies: none and single
-  pivot-strategy: "single"
+  # available strategies: none, single, multiple
+  pivot-strategy: "multiple"
 
-  fixed-cost: 100000 # ToDo: Check that there's a value here! It has to be above 0!!
+##################
+# most important
+  # possible strategies:
+  # street-following: pipes have to be installed under the streets.
+  # greenfield: no rules for pipe installation.
+  # adjacent: Only neighbouring buildings
+  installation-strategy: "street-following"
+  fixed-cost: 200000 # in €
   life-time-in-years: 30 # of heating source
-  heat-capacity: 250 # 250 kW für Analyse!
-  # in kW.
-
-  trench-cost-per-cubic-m: 130.0
-  cost-per-penetration: 200.0
+  heat-capacity: 250 # in kW
+  trench-cost-per-cubic-m: 130.0 # in €
+  cost-per-penetration: 200.0 # in €
+##################
 
   insulation-factor: 0
   # insulation decreases heating demand by the specified percentage!
@@ -50,8 +56,8 @@
   eps: 100
 
   # brkga parameters
-  num-generations-to-break: 10
-  population-factor: 3
+  num-generations-to-break: 100
+  population-factor: 5
   do-warm-start: "False"
   use-random-seed: "True"
 

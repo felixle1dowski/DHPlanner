@@ -12,6 +12,7 @@ from .multi_step_pipeline.mst_visualizer import MSTVisualizer
 from .multi_step_pipeline.multi_step_pipeline import MultiStepPipeline
 from .multi_step_pipeline.clustering_second_stage_feasible_solution_creator import ClusteringSecondStageFeasibleSolutionCreator
 from .multi_step_pipeline.visualization import Visualization
+from .multi_step_pipeline.brkga.minded_heating_sources.minded_heating_sources import MindedHeatingSources
 
 
 class DHCCreationPipelineFactory:
@@ -39,7 +40,7 @@ class DHCCreationPipelineFactory:
             raise Exception("method is not valid.")
 
     def create_street_following_pipeline(self):
-        preprocessing = Preprocessing()
+        preprocessing = Preprocessing(self.get_maximum_heat_capacity())
         clustering_first_stage = ClusteringFirstStage(Config().get_distance_measuring_method())
         feasible_solution_creator = ClusteringSecondStageFeasibleSolutionCreator()
         clustering_second_stage = ClusteringSecondStage()
@@ -57,7 +58,7 @@ class DHCCreationPipelineFactory:
                                  visualization)
 
     def create_greenfield_pipeline(self):
-        preprocessing = Preprocessing()
+        preprocessing = Preprocessing(self.get_maximum_heat_capacity())
         clustering_first_stage = ClusteringFirstStage(Config().get_distance_measuring_method())
         feasible_solution_creator = ClusteringSecondStageFeasibleSolutionCreator()
         clustering_second_stage = ClusteringSecondStage()
@@ -71,7 +72,7 @@ class DHCCreationPipelineFactory:
                                  visualization)
 
     def create_adjacent_pipeline(self):
-        preprocessing = Preprocessing()
+        preprocessing = Preprocessing(self.get_maximum_heat_capacity())
         clustering_first_stage = ClusteringFirstStage(Config().get_distance_measuring_method())
         feasible_solution_creator = ClusteringSecondStageFeasibleSolutionCreator()
         clustering_second_stage = ClusteringSecondStage()
@@ -83,3 +84,10 @@ class DHCCreationPipelineFactory:
                                       clustering_second_stage,
                                       graph_creator,
                                       visualization)
+
+    def get_maximum_heat_capacity(self):
+        minded_heating_sources = MindedHeatingSources()
+        maximum_heat_capacity = Config().get_heat_capacity() if Config().get_pivot_strategy() in ["none", "single",
+                                                                                                  "double"] else \
+            minded_heating_sources.get_heating_sources()[-1].heating_capacity_kw
+        return maximum_heat_capacity
