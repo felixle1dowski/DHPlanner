@@ -168,7 +168,7 @@ class FitnessFunction:
             result = write_result_dict(cluster_center_id, pipe_result, supplied_power,
                                        pipe_investment_cost, trench_cost, total_pipe_cost,
                                        total_cost, total_cost / supplied_power, members,
-                                       heating_source.capacity_kw, heating_source.price_euro)
+                                       heating_source.capacity_kw, heating_source.cost_euro)
             result_for_each_cluster_list.append(result)
         result_sums = self.result_sums(result_for_each_cluster_list)
         end_result = {

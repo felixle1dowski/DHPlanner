@@ -23,14 +23,14 @@ class ClusteringDecoder:
         self.instance = instance
         self.num_clusters = num_clusters
         self.fitness_function = fitness_function
-        self.number_of_heating_sources_to_consider = 1
+        self.number_of_heating_sources_to_consider = 1 # unnecessary?
 
     def decode(self, chromosome: BaseChromosome, rewrite: bool) -> float:
         arranged_ids = self.decode_shared_part(chromosome)
         if self.pivot_element in ("none", "single", "double"):
             fitness = self.decode_default(arranged_ids)
         elif self.pivot_element == "multiple":
-            fitness = self.decode_multiple_heat_sources(arranged_ids)
+            fitness = self.decode_multiple_heat_sources_with_fitness(arranged_ids)
         else:
             raise Exception("invalid pivot_element")
         return fitness
@@ -47,7 +47,7 @@ class ClusteringDecoder:
         groups_per_heating_source = self.divide_ids_into_groups_per_heating_source(arranged_ids)
         needed_heating_sources = self.calculate_needed_heating_sources_first_guess(groups_per_heating_source)
         merged_list = self.merge_heating_sources_data_types(groups_per_heating_source, needed_heating_sources)
-        list_of_cluster_dicts = []
+        result_cluster_dict = {}
         for entry in merged_list:
             overflow_occurred = True
             cluster_dict = None
@@ -56,11 +56,18 @@ class ClusteringDecoder:
                 if overflow_occurred:
                     entry["needed_heating_sources"] += 1
             if cluster_dict:
-                list_of_cluster_dicts.append(cluster_dict)
-        fitness = self.evaluate_solution(list_of_cluster_dicts)
+                for cluster_center_id, inner_dict in cluster_dict.items():
+                    result_cluster_dict[cluster_center_id] = inner_dict
+        return result_cluster_dict
+
+    def decode_multiple_heat_sources_with_fitness(self, arranged_ids):
+        cluster_dict = self.decode_multiple_heat_sources(arranged_ids)
+        fitness = self.evaluate_solution(cluster_dict)
         return fitness
 
     def divide_members_into_groups(self, entry_dict):
+        # ToDo: Rewrite to accept members, heating source and needed heating_sources as parameters
+        # ToDo: instead of one entry dict.
         cluster_dict = {}
         overflow_occurred = False
         members = entry_dict["members"]
@@ -73,13 +80,14 @@ class ClusteringDecoder:
                 self.init_cluster_dict_multiple_heating_sources(cluster_center, heating_source))
         for cluster_member in cluster_members:
             potential_member_assigned = False
-            distances_from_member_to_cluster_center \
+            distances_from_member_to_cluster_centers \
                 = self.instance.get_sorted_distances_to_multiple_points(cluster_member, cluster_centers)
-            for point_distance_tuple in distances_from_member_to_cluster_center:
+            for point_distance_tuple in distances_from_member_to_cluster_centers:
                 if self.potential_member_fits_into_cluster(capacities, point_distance_tuple[0], cluster_member):
                     capacities[point_distance_tuple[0]] -= float(self.instance.get_point_demand(cluster_member))
                     cluster_dict[point_distance_tuple[0]]["members"].append(cluster_member)
                     potential_member_assigned = True
+                    break
             if not potential_member_assigned:
                 overflow_occurred = True
         return cluster_dict, overflow_occurred
@@ -95,7 +103,7 @@ class ClusteringDecoder:
     def merge_heating_sources_data_types(self, groups_per_heating_source, needed_heating_sources):
         merged_list = []
         index = 0
-        for (heating_source, members) in groups_per_heating_source:
+        for (heating_source, members) in groups_per_heating_source.items():
             dict_entry = {
                 "heating_source": heating_source,
                 "needed_heating_sources": needed_heating_sources[index],
@@ -106,25 +114,32 @@ class ClusteringDecoder:
         return merged_list
 
     def divide_ids_into_groups_per_heating_source(self, arranged_ids):
-        number_of_pivots = self.instance.get_number_of_pivots()
+        number_of_heating_sources = self.instance.minded_heating_sources.get_number_of_heating_sources()
         members_per_heating_source = {}
-        start_element_index = 0
-        for heating_source_index in range(number_of_pivots):
-            for element_index in range(len(arranged_ids) - start_element_index):
-                group_members = []
-                if not arranged_ids[element_index].startswith(self.PIVOT_PREFIX):
-                    group_members.append(arranged_ids[element_index])
-                else:
-                    start_element_index = element_index
-                    members_per_heating_source[self.instance.minded_heating_sources.get_heating_source_by_index(heating_source_index)] = group_members
-                    break
-        Logger().debug(f"ids were grouped by heating source: {members_per_heating_source}")
+        current_group = []
+        group_index = 0
+        for item in arranged_ids:
+            if item.startswith(self.PIVOT_PREFIX):
+                if group_index < number_of_heating_sources:
+                    heating_source = self.instance.minded_heating_sources.get_heating_source_by_index(group_index)
+                    members_per_heating_source[heating_source] = current_group
+                    group_index += 1
+                    current_group = []
+            else:
+                current_group.append(item)
+        if group_index < number_of_heating_sources:
+            heating_source = self.instance.minded_heating_sources.get_heating_source_by_index(group_index)
+            members_per_heating_source[heating_source] = current_group
+            group_index += 1
+        for i in range(group_index, number_of_heating_sources):
+            heating_source = self.instance.minded_heating_sources.get_heating_source_by_index(i)
+            members_per_heating_source[heating_source] = []
         return members_per_heating_source
 
     def calculate_needed_heating_sources_first_guess(self, groups_per_heating_source):
         needed_heating_sources = []
-        for (heating_source, members) in groups_per_heating_source:
-            cumulated_demands = sum([self.instance.get_point_demands(member) for member in members])
+        for (heating_source, members) in groups_per_heating_source.items():
+            cumulated_demands = self.instance.get_point_demands(members)
             # always rounding up, because small heating sources are also possible.
             amount_of_heating_sources_needed = math.ceil(cumulated_demands / heating_source.capacity_kw)
             needed_heating_sources.append(amount_of_heating_sources_needed)
@@ -144,11 +159,18 @@ class ClusteringDecoder:
 
     def decode_chromosome(self, chromosome: BaseChromosome):
         arranged_ids = self.decode_shared_part(chromosome)
-        # ToDo: What does this mean in the case of multiple heating sources?
-        cluster_capacities = self.init_cluster_capacities_default(arranged_ids)
-        if cluster_capacities is -1:
-            return self.CONSTRAINT_BROKEN_PENALTY
-        cluster_dict = self.create_cluster_membership_dict(arranged_ids, cluster_capacities)
+        if self.pivot_element in ["none", "single", "double"]:
+            # ToDo: What does this mean in the case of multiple heating sources?
+            cluster_capacities = self.init_cluster_capacities_default(arranged_ids)
+            if cluster_capacities is -1:
+                return self.CONSTRAINT_BROKEN_PENALTY
+            cluster_dict = self.create_cluster_membership_dict(arranged_ids, cluster_capacities)
+        elif self.pivot_element == "multiple":
+            # ToDo: Make this consistent with standard cluster dict calculation!! Probably standard
+            # ToDo: Procedure should be adapted.
+            cluster_dict = self.decode_multiple_heat_sources(arranged_ids)
+        else:
+            raise NotImplementedError(f"{self.pivot_element} is not implemented")
         return cluster_dict
 
     def decode_shared_part(self, chromosome: BaseChromosome):

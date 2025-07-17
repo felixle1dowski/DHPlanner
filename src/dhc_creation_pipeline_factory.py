@@ -89,5 +89,5 @@ class DHCCreationPipelineFactory:
         minded_heating_sources = MindedHeatingSources()
         maximum_heat_capacity = Config().get_heat_capacity() if Config().get_pivot_strategy() in ["none", "single",
                                                                                                   "double"] else \
-            minded_heating_sources.get_heating_sources()[-1].heating_capacity_kw
+            minded_heating_sources.get_heating_sources()[-1].capacity_kw
         return maximum_heat_capacity

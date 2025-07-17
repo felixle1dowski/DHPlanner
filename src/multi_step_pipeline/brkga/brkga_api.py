@@ -128,6 +128,8 @@ class BrkgaAPI:
         excluded_members = warm_start[self.EXCLUDED_KEY][self.MEMBER_LIST_KEY]
         if pivot_element == "single":
             id_solution = cluster_ids + members + [self.PIVOT_STRING_SINGLE] + excluded_members
+        elif pivot_element == "multiple":
+            id_solution = cluster_ids + members + [self.PIVOT_STRING_PREFIX_MULTIPLE + f"{i}" for i in range(len(self.minded_heating_sources.get_heating_sources()) - 1)] + excluded_members
         else:
             id_solution = cluster_ids + members + excluded_members
         if len(id_solution) != len(total_member_list):

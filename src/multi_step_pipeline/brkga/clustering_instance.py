@@ -11,6 +11,7 @@ class ClusteringInstance:
     IS_CENTER_FIELD = "is_center"
     CLUSTER_ID_FIELD = "cluster_id"
     PIVOT_STRING_SINGLE = "pivot_members_end"
+    NOT_NEEDED_PIVOTS_OFFSET = -1
 
     def __init__(self, graph: nx.Graph, max_capacity: float, demands: {str: float}, yearly_demands: {str: float},
                  members: list,
@@ -51,24 +52,16 @@ class ClusteringInstance:
             return float(self.yearly_demands[point])
 
     def get_number_of_nodes(self):
-        number_of_nodes = len(self.demands)
-        if self.pivot_element == "single":
-            number_of_nodes += 1
-        elif self.pivot_element == "double":
-            number_of_nodes += 2
-        elif self.pivot_element == "multiple":
-            number_of_nodes += self.minded_heating_sources.get_number_of_heating_sources()
+        number_of_nodes = len(self.members)
         return number_of_nodes
 
     def get_number_of_pivots(self):
-        pivot_offset = 1 # one pivot isn't needed, since we divide all buildings into as many groups as there
-        # are pivot elements. We don't need a pivot for the last group.
         if self.pivot_element == "single":
             return 1
         elif self.pivot_element == "double":
             return 2
         elif self.pivot_element == "multiple":
-            return self.minded_heating_sources.get_number_of_heating_sources() - pivot_offset
+            return self.minded_heating_sources.get_number_of_heating_sources() + self.NOT_NEEDED_PIVOTS_OFFSET
         else:
             return 0
 
